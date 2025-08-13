@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Citizen {
+  id                    String   @id @default(cuid())
+  
+  // Encrypted sensitive data
+  phoneNumberEncrypted String   @unique // Encrypted phone number
+  phoneNumberHash      String   @unique // Hash for searching
+  emailEncrypted       String?  // Encrypted email
+  emailHash            String?  // Hash for searching
+  
+  // Public data
+  name                 String?
+  
+  // Location and Jurisdiction (encrypted)
+  registeredCity       String
+  registeredPincode    String
+  registeredDistrict   String
+  registeredState      String
+  
+  // Verification
+  isPhoneVerified      Boolean  @default(false)
+  isIdentityVerified   Boolean  @default(false)
+  
+  // Reward System
+  totalPoints          Int      @default(0)
+  pointsEarned         Int      @default(0)
+  pointsRedeemed       Int      @default(0)
+  reportsSubmitted     Int      @default(0)
+  reportsApproved      Int      @default(0)
+  accuracyRate         Float    @default(0.0)
+  
+  // Settings
+  isAnonymousMode      Boolean  @default(false)
+  notificationEnabled  Boolean  @default(true)
+  
+  // Metadata
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  lastLoginAt          DateTime?
+  isActive             Boolean  @default(true)
+  
+  // Relations
+  reports              ViolationReport[]
+  
+  @@index([phoneNumberHash])
+  @@index([emailHash])
+  @@index([registeredCity])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  
+  // Encrypted sensitive data
+  emailEncrypted String   @unique // Encrypted email
+  emailHash      String   @unique // Hash for searching
+  
+  // Public data
+  passwordHash String
+  name         String
+  role         String  // UserRole enum as string
+  department   String
+  city         String
+  district     String
+  badgeNumber  String   @unique
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+  
+  // Relations
+  reviewedReports ViolationReport[]
+  
+  @@index([emailHash])
+  @@index([badgeNumber])
+}
+
+model ViolationReport {
+  id                Int           @id @default(autoincrement())
+  reporterId        String
+  
+  // Encrypted sensitive data
+  reporterPhoneEncrypted String
+  reporterPhoneHash      String
+  
+  // Public data
+  reporterCity      String
+  reporterPincode   String
+  
+  // Violation Details
+  violationType     String  // ViolationType enum as string
+  severity          String?  // SeverityLevel enum as string (optional for prototype)
+  description       String?
+  timestamp         DateTime
+  
+  // Location Information (encrypted)
+  latitude          Float
+  longitude         Float
+  addressEncrypted  String
+  pincode           String
+  city              String
+  district          String
+  state             String
+  
+  // Vehicle Information (encrypted)
+  vehicleNumberEncrypted String?
+  vehicleType       String?  // VehicleType enum as string
+  vehicleColor      String?
+  
+  // Media Information
+  photoUrl          String?
+  videoUrl          String?
+  mediaMetadata     String?
+  
+  // Status & Processing
+  status            String  @default("PENDING") // ReportStatus enum as string
+  isDuplicate       Boolean       @default(false)
+  duplicateGroupId  String?
+  confidenceScore   Float?
+  
+  // Review Information
+  reviewerId        String?
+  reviewTimestamp   DateTime?
+  reviewNotes       String?
+  challanIssued     Boolean       @default(false)
+  challanNumber     String?
+  
+  // Reward Information
+  pointsAwarded     Int           @default(0)
+  isFirstReporter   Boolean       @default(false)
+  
+  // Metadata
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  isAnonymous       Boolean       @default(false)
+  
+  // Relations
+  citizen           Citizen       @relation(fields: [citizenId], references: [id])
+  citizenId         String
+  reviewer          User?         @relation(fields: [reviewerId], references: [id])
+  
+  @@index([status])
+  @@index([city])
+  @@index([violationType])
+  @@index([createdAt])
+  @@index([citizenId])
+  @@index([reporterPhoneHash])
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  
+  // Encrypted sensitive data
+  phoneNumberEncrypted String
+  phoneNumberHash      String
+  
+  // Public data
+  otp       String
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([phoneNumberHash])
+  @@index([expiresAt])
+}
+
+// Note: Enums are stored as strings in SQLite
+// Valid values for each field:
+// violationType: "WRONG_SIDE_DRIVING", "NO_PARKING_ZONE", "SIGNAL_JUMPING", "SPEED_VIOLATION", "HELMET_SEATBELT_VIOLATION", "MOBILE_PHONE_USAGE", "LANE_CUTTING", "DRUNK_DRIVING_SUSPECTED", "OTHERS"
+// severity: "MINOR", "MAJOR", "CRITICAL"
+// vehicleType: "TWO_WHEELER", "FOUR_WHEELER", "COMMERCIAL_VEHICLE", "HEAVY_VEHICLE", "AUTO_RICKSHAW", "BUS", "TRUCK", "OTHERS"
+// status: "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "DUPLICATE"
+// role: "OFFICER", "SUPERVISOR", "ADMIN"

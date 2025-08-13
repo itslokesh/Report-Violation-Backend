@@ -1,0 +1,60 @@
+import { Router, Request, Response } from 'express';
+import { FileUploadService } from '../services/fileUpload';
+import { uploadImage, uploadVideo, handleUploadError, validateFileUpload } from '../middleware/upload';
+import { authMiddleware } from '../middleware/auth';
+import { SUCCESS_MESSAGES } from '../utils/constants';
+
+const router = Router();
+const fileUploadService = new FileUploadService();
+
+// Apply authentication middleware to all routes
+router.use(authMiddleware);
+
+// Upload photo
+router.post('/photo', 
+  uploadImage, 
+  handleUploadError,
+  validateFileUpload,
+  async (req, res) => {
+    try {
+      const result = await fileUploadService.uploadImage(req.file!);
+      
+      res.json({
+        success: true,
+        data: result,
+        message: SUCCESS_MESSAGES.FILE_UPLOADED
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to upload photo'
+      });
+    }
+  }
+);
+
+// Upload video
+router.post('/video', 
+  uploadVideo, 
+  handleUploadError,
+  validateFileUpload,
+  async (req, res) => {
+    try {
+      const result = await fileUploadService.uploadVideo(req.file!);
+      
+      res.json({
+        success: true,
+        data: result,
+        message: SUCCESS_MESSAGES.FILE_UPLOADED
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to upload video'
+      });
+    }
+  }
+);
+
+export default router;
+
