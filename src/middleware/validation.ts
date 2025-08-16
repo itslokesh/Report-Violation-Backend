@@ -4,7 +4,7 @@ import { ERROR_MESSAGES } from '../utils/constants';
 
 export const validateRequest = (schema: Joi.ObjectSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req.body);
+    const { error, value } = schema.validate(req.body, { convert: true, abortEarly: false });
     
     if (error) {
       return res.status(400).json({
@@ -14,13 +14,15 @@ export const validateRequest = (schema: Joi.ObjectSchema) => {
       });
     }
     
+    // apply coerced values (e.g., Date objects)
+    (req as any).body = value;
     next();
   };
 };
 
 export const validateQuery = (schema: Joi.ObjectSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req.query);
+    const { error, value } = schema.validate(req.query, { convert: true, abortEarly: false });
     
     if (error) {
       return res.status(400).json({
@@ -30,13 +32,14 @@ export const validateQuery = (schema: Joi.ObjectSchema) => {
       });
     }
     
+    (req as any).query = value;
     next();
   };
 };
 
 export const validateParams = (schema: Joi.ObjectSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req.params);
+    const { error, value } = schema.validate(req.params, { convert: true, abortEarly: false });
     
     if (error) {
       return res.status(400).json({
@@ -46,6 +49,7 @@ export const validateParams = (schema: Joi.ObjectSchema) => {
       });
     }
     
+    (req as any).params = value;
     next();
   };
 };
@@ -77,7 +81,7 @@ export const schemas = {
   }),
 
   createReport: Joi.object({
-    violationType: Joi.string().valid(
+    violationTypes: Joi.array().items(Joi.string().valid(
       'WRONG_SIDE_DRIVING',
       'NO_PARKING_ZONE',
       'SIGNAL_JUMPING',
@@ -87,8 +91,8 @@ export const schemas = {
       'LANE_CUTTING',
       'DRUNK_DRIVING_SUSPECTED',
       'OTHERS'
-    ).required(),
-    severity: Joi.string().valid('MINOR', 'MAJOR', 'CRITICAL').required(),
+    )).min(1).required(),
+    severity: Joi.string().valid('MINOR', 'MAJOR', 'CRITICAL').optional(),
     description: Joi.string().max(500).optional(),
     timestamp: Joi.date().required(),
     latitude: Joi.number().min(-90).max(90).required(),
@@ -98,6 +102,8 @@ export const schemas = {
     city: Joi.string().min(2).max(50).required(),
     district: Joi.string().min(2).max(50).required(),
     state: Joi.string().min(2).max(50).required(),
+    photoUrl: Joi.string().uri().optional(),
+    videoUrl: Joi.string().uri().optional(),
     vehicleNumber: Joi.string().pattern(/^[A-Z]{2}[0-9]{2}[A-Z]{2}[0-9]{4}$/).optional(),
     vehicleType: Joi.string().valid(
       'TWO_WHEELER',

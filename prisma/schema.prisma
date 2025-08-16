@@ -8,144 +8,100 @@ datasource db {
 }
 
 model Citizen {
-  id                    String   @id @default(cuid())
-  
-  // Encrypted sensitive data
-  phoneNumberEncrypted String   @unique // Encrypted phone number
-  phoneNumberHash      String   @unique // Hash for searching
-  emailEncrypted       String?  // Encrypted email
-  emailHash            String?  // Hash for searching
-  
-  // Public data
+  id                   String            @id @default(cuid())
+  phoneNumberEncrypted String            @unique
+  phoneNumberHash      String            @unique
+  emailEncrypted       String?
+  emailHash            String?
   name                 String?
-  
-  // Location and Jurisdiction (encrypted)
-  registeredCity       String
-  registeredPincode    String
-  registeredDistrict   String
-  registeredState      String
-  
-  // Verification
-  isPhoneVerified      Boolean  @default(false)
-  isIdentityVerified   Boolean  @default(false)
-  
-  // Reward System
-  totalPoints          Int      @default(0)
-  pointsEarned         Int      @default(0)
-  pointsRedeemed       Int      @default(0)
-  reportsSubmitted     Int      @default(0)
-  reportsApproved      Int      @default(0)
-  accuracyRate         Float    @default(0.0)
-  
-  // Settings
-  isAnonymousMode      Boolean  @default(false)
-  notificationEnabled  Boolean  @default(true)
-  
-  // Metadata
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  isPhoneVerified      Boolean           @default(false)
+  isIdentityVerified   Boolean           @default(false)
+  totalPoints          Int               @default(0)
+  pointsEarned         Int               @default(0)
+  pointsRedeemed       Int               @default(0)
+  reportsSubmitted     Int               @default(0)
+  reportsApproved      Int               @default(0)
+  accuracyRate         Float             @default(0.0)
+  isAnonymousMode      Boolean           @default(false)
+  notificationEnabled  Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
   lastLoginAt          DateTime?
-  isActive             Boolean  @default(true)
-  
-  // Relations
+  isActive             Boolean           @default(true)
   reports              ViolationReport[]
-  
+  feedback             Feedback[]
+
   @@index([phoneNumberHash])
   @@index([emailHash])
-  @@index([registeredCity])
 }
 
 model User {
-  id           String   @id @default(cuid())
-  
-  // Encrypted sensitive data
-  emailEncrypted String   @unique // Encrypted email
-  emailHash      String   @unique // Hash for searching
-  
-  // Public data
-  passwordHash String
-  name         String
-  role         String  // UserRole enum as string
-  department   String
-  city         String
-  district     String
-  badgeNumber  String   @unique
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  lastLoginAt  DateTime?
-  
-  // Relations
+  id              String            @id @default(cuid())
+  emailEncrypted  String            @unique
+  emailHash       String            @unique
+  passwordHash    String
+  name            String
+  role            String
+  department      String
+  city            String
+  district        String
+  badgeNumber     String            @unique
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  lastLoginAt     DateTime?
   reviewedReports ViolationReport[]
-  
+  feedback        Feedback[]
+  assignedFeedback Feedback[] @relation("AssignedFeedback")
+  feedbackResponses FeedbackResponse[]
+
   @@index([emailHash])
   @@index([badgeNumber])
 }
 
 model ViolationReport {
-  id                Int           @id @default(autoincrement())
-  reporterId        String
-  
-  // Encrypted sensitive data
+  id                     Int       @id @default(autoincrement())
+  reporterId             String
   reporterPhoneEncrypted String
   reporterPhoneHash      String
-  
-  // Public data
-  reporterCity      String
-  reporterPincode   String
-  
-  // Violation Details
-  violationType     String  // ViolationType enum as string
-  severity          String?  // SeverityLevel enum as string (optional for prototype)
-  description       String?
-  timestamp         DateTime
-  
-  // Location Information (encrypted)
-  latitude          Float
-  longitude         Float
-  addressEncrypted  String
-  pincode           String
-  city              String
-  district          String
-  state             String
-  
-  // Vehicle Information (encrypted)
+  reporterCity           String
+  reporterPincode        String
+  violationType          String
+  severity               String?
+  description            String?
+  timestamp              DateTime
+  latitude               Float
+  longitude              Float
+  addressEncrypted       String
+  pincode                String
+  city                   String
+  district               String
+  state                  String
   vehicleNumberEncrypted String?
-  vehicleType       String?  // VehicleType enum as string
-  vehicleColor      String?
-  
-  // Media Information
-  photoUrl          String?
-  videoUrl          String?
-  mediaMetadata     String?
-  
-  // Status & Processing
-  status            String  @default("PENDING") // ReportStatus enum as string
-  isDuplicate       Boolean       @default(false)
-  duplicateGroupId  String?
-  confidenceScore   Float?
-  
-  // Review Information
-  reviewerId        String?
-  reviewTimestamp   DateTime?
-  reviewNotes       String?
-  challanIssued     Boolean       @default(false)
-  challanNumber     String?
-  
-  // Reward Information
-  pointsAwarded     Int           @default(0)
-  isFirstReporter   Boolean       @default(false)
-  
-  // Metadata
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  isAnonymous       Boolean       @default(false)
-  
-  // Relations
-  citizen           Citizen       @relation(fields: [citizenId], references: [id])
-  citizenId         String
-  reviewer          User?         @relation(fields: [reviewerId], references: [id])
-  
+  vehicleType            String?
+  vehicleColor           String?
+  photoUrl               String?
+  videoUrl               String?
+  mediaMetadata          String?
+  status                 String    @default("PENDING")
+  isDuplicate            Boolean   @default(false)
+  duplicateGroupId       String?
+  confidenceScore        Float?
+  reviewerId             String?
+  reviewTimestamp        DateTime?
+  reviewNotes            String?
+  challanIssued          Boolean   @default(false)
+  challanNumber          String?
+  pointsAwarded          Int       @default(0)
+  isFirstReporter        Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  isAnonymous            Boolean   @default(false)
+  citizenId              String
+  reviewer               User?     @relation(fields: [reviewerId], references: [id])
+  citizen                Citizen   @relation(fields: [citizenId], references: [id])
+  feedback               Feedback[]
+
   @@index([status])
   @@index([city])
   @@index([violationType])
@@ -155,26 +111,73 @@ model ViolationReport {
 }
 
 model OTP {
-  id        String   @id @default(cuid())
-  
-  // Encrypted sensitive data
+  id                   String   @id @default(cuid())
   phoneNumberEncrypted String
   phoneNumberHash      String
-  
-  // Public data
-  otp       String
-  expiresAt DateTime
-  isUsed    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  
+  otp                  String
+  expiresAt            DateTime
+  isUsed               Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
   @@index([phoneNumberHash])
   @@index([expiresAt])
 }
 
-// Note: Enums are stored as strings in SQLite
-// Valid values for each field:
-// violationType: "WRONG_SIDE_DRIVING", "NO_PARKING_ZONE", "SIGNAL_JUMPING", "SPEED_VIOLATION", "HELMET_SEATBELT_VIOLATION", "MOBILE_PHONE_USAGE", "LANE_CUTTING", "DRUNK_DRIVING_SUSPECTED", "OTHERS"
-// severity: "MINOR", "MAJOR", "CRITICAL"
-// vehicleType: "TWO_WHEELER", "FOUR_WHEELER", "COMMERCIAL_VEHICLE", "HEAVY_VEHICLE", "AUTO_RICKSHAW", "BUS", "TRUCK", "OTHERS"
-// status: "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "DUPLICATE"
-// role: "OFFICER", "SUPERVISOR", "ADMIN"
+model Feedback {
+  id                String        @id @default(cuid())
+  feedbackType      String        // APP_FEEDBACK, REPORT_FEEDBACK, SERVICE_FEEDBACK, FEATURE_REQUEST
+  category          String        // UI_UX, BUG, PERFORMANCE, SUGGESTION, COMPLAINT, PRAISE
+  title             String
+  description       String
+  rating            Int?          // 1-5 rating (optional)
+  priority          String        // LOW, MEDIUM, HIGH, CRITICAL
+  status            String        @default("PENDING") // PENDING, IN_REVIEW, RESOLVED, CLOSED
+  isAnonymous       Boolean       @default(false)
+  contactEmail      String?       // For follow-up
+  contactPhone      String?       // For follow-up
+  attachments       String?       // JSON array of file URLs
+  metadata          String?       // JSON for additional data
+  assignedTo        String?       // User ID of assigned reviewer
+  resolutionNotes   String?
+  resolvedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  // Relationships
+  citizenId         String?       // If feedback from citizen
+  userId            String?       // If feedback from police user
+  reportId          Int?          // If feedback related to specific report
+  
+  citizen           Citizen?      @relation(fields: [citizenId], references: [id])
+  user              User?         @relation(fields: [userId], references: [id])
+  report            ViolationReport? @relation(fields: [reportId], references: [id])
+  assignedUser      User?         @relation("AssignedFeedback", fields: [assignedTo], references: [id])
+  responses         FeedbackResponse[]
+
+  @@index([feedbackType])
+  @@index([category])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([citizenId])
+  @@index([userId])
+  @@index([reportId])
+  @@index([assignedTo])
+}
+
+model FeedbackResponse {
+  id          String   @id @default(cuid())
+  feedbackId  String
+  responderId String   // User ID of police responder
+  message     String
+  isInternal  Boolean  @default(false) // Internal note vs public response
+  createdAt   DateTime @default(now())
+  
+  // Relationships
+  feedback    Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  responder   User     @relation(fields: [responderId], references: [id])
+
+  @@index([feedbackId])
+  @@index([responderId])
+  @@index([createdAt])
+}

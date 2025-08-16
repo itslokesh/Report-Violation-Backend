@@ -4,12 +4,15 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
+import { requestLogger } from './middleware/requestLogger';
 
 // Import routes
 import authRoutes from './routes/auth';
 import citizenRoutes from './routes/citizen';
 import policeRoutes from './routes/police';
 import uploadRoutes from './routes/upload';
+import feedbackRoutes from './routes/feedback';
 
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -49,6 +52,12 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging (after parsers so body is available)
+app.use(requestLogger);
+
+// Static serving for local uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -64,6 +73,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/citizen', citizenRoutes);
 app.use('/api/police', policeRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Shared vehicle info endpoint (no auth required)
 app.get('/api/vehicles/:number', async (req, res) => {

@@ -1,4 +1,4 @@
-import { Citizen, User, UserRole } from '@prisma/client';
+import { Citizen, User } from '@prisma/client';
 
 export interface CitizenAuthRequest {
   phoneNumber: string;
@@ -29,7 +29,7 @@ export interface AuthResponse {
 export interface JwtPayload {
   userId: string;
   type: 'citizen' | 'police';
-  role?: UserRole;
+  role?: string;
 }
 
 export interface RefreshTokenRequest {

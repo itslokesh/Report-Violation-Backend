@@ -18,6 +18,13 @@ router.post('/photo',
   async (req, res) => {
     try {
       const result = await fileUploadService.uploadImage(req.file!);
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'upload_photo',
+        userId: (req as any).user?.id,
+        filename: result.filename,
+        size: result.size
+      }));
       
       res.json({
         success: true,
@@ -41,6 +48,13 @@ router.post('/video',
   async (req, res) => {
     try {
       const result = await fileUploadService.uploadVideo(req.file!);
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'upload_video',
+        userId: (req as any).user?.id,
+        filename: result.filename,
+        size: result.size
+      }));
       
       res.json({
         success: true,

@@ -24,7 +24,7 @@ export class SmsService {
 
       if (!this.client) {
         // Mock SMS for development
-        console.log(`[MOCK SMS] To: ${phoneNumber}, Message: ${message}`);
+        console.log(JSON.stringify({ timestamp: new Date().toISOString(), event: 'mock_sms', to: phoneNumber, message }));
         return true;
       }
 
@@ -46,7 +46,7 @@ export class SmsService {
       const message = `Your traffic violation report #${reportId} has been ${status.toLowerCase()}. Check the app for details.`;
 
       if (!this.client) {
-        console.log(`[MOCK SMS] To: ${phoneNumber}, Message: ${message}`);
+        console.log(JSON.stringify({ timestamp: new Date().toISOString(), event: 'mock_sms', to: phoneNumber, message }));
         return true;
       }
 
@@ -68,7 +68,7 @@ export class SmsService {
       const message = `Congratulations! You earned ${points} points for your report. Total points: ${totalPoints}. Keep reporting violations safely!`;
 
       if (!this.client) {
-        console.log(`[MOCK SMS] To: ${phoneNumber}, Message: ${message}`);
+        console.log(JSON.stringify({ timestamp: new Date().toISOString(), event: 'mock_sms', to: phoneNumber, message }));
         return true;
       }
 

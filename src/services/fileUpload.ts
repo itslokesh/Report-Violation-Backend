@@ -1,11 +1,15 @@
 import * as admin from 'firebase-admin';
 import { UploadResponse } from '../types/api';
 import { APP_CONSTANTS } from '../utils/constants';
+import path from 'path';
+import { promises as fs } from 'fs';
 
 export class FileUploadService {
   private bucket: any;
+  private useLocal: boolean;
 
   constructor() {
+    this.useLocal = (process.env.STORAGE_DRIVER || 'local') === 'local';
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -14,8 +18,9 @@ export class FileUploadService {
         projectId === 'your-project-id' || 
         privateKey === 'your-private-key' || 
         clientEmail === 'your-client-email') {
-      console.warn('Firebase credentials not configured. File upload service will be mocked.');
+      // No Firebase creds; fall back to local storage
       this.bucket = null;
+      this.useLocal = true;
       return;
     }
 
@@ -35,8 +40,9 @@ export class FileUploadService {
 
       this.bucket = admin.storage().bucket();
     } catch (error) {
-      console.warn('Firebase initialization failed. File upload service will be mocked.');
+      console.warn('Firebase initialization failed. Falling back to local storage.');
       this.bucket = null;
+      this.useLocal = true;
     }
   }
 
@@ -50,14 +56,15 @@ export class FileUploadService {
         throw new Error('File too large');
       }
 
-      if (!this.bucket) {
-        // Mock upload for development
-        const filename = `${folder}/images/${Date.now()}_${file.originalname}`;
-        console.log(`[MOCK UPLOAD] Image: ${filename}, Size: ${file.size} bytes`);
-        
+      if (!this.bucket && this.useLocal) {
+        const relPath = path.posix.join(folder, 'images', `${Date.now()}_${file.originalname}`);
+        const absDir = path.join(process.cwd(), 'uploads', folder, 'images');
+        const absPath = path.join(process.cwd(), 'uploads', relPath.replace(`${folder}/images/`, `${folder}/images/`));
+        await fs.mkdir(absDir, { recursive: true });
+        await fs.writeFile(absPath, file.buffer);
         return {
-          url: `https://mock-storage.com/${filename}`,
-          filename: filename,
+          url: `/uploads/${relPath}`.replace(/\\/g, '/'),
+          filename: relPath,
           size: file.size,
           mimeType: file.mimetype,
         };
@@ -98,14 +105,15 @@ export class FileUploadService {
         throw new Error('File too large');
       }
 
-      if (!this.bucket) {
-        // Mock upload for development
-        const filename = `${folder}/videos/${Date.now()}_${file.originalname}`;
-        console.log(`[MOCK UPLOAD] Video: ${filename}, Size: ${file.size} bytes`);
-        
+      if (!this.bucket && this.useLocal) {
+        const relPath = path.posix.join(folder, 'videos', `${Date.now()}_${file.originalname}`);
+        const absDir = path.join(process.cwd(), 'uploads', folder, 'videos');
+        const absPath = path.join(process.cwd(), 'uploads', relPath.replace(`${folder}/videos/`, `${folder}/videos/`));
+        await fs.mkdir(absDir, { recursive: true });
+        await fs.writeFile(absPath, file.buffer);
         return {
-          url: `https://mock-storage.com/${filename}`,
-          filename: filename,
+          url: `/uploads/${relPath}`.replace(/\\/g, '/'),
+          filename: relPath,
           size: file.size,
           mimeType: file.mimetype,
         };

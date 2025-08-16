@@ -22,7 +22,9 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist coverage",
     "docker:build": "docker build -t traffic-police-backend .",
-    "docker:run": "docker run -p 3000:3000 traffic-police-backend"
+    "docker:run": "docker run -p 3000:3000 traffic-police-backend",
+    "db:list": "ts-node scripts/listTables.ts",
+    "smoke": "node ./scripts/smoke.mjs"
   },
   "dependencies": {
     "express": "^4.18.2",

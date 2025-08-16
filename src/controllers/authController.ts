@@ -24,6 +24,12 @@ export class AuthController {
     
     // Generate OTP
     const otp = Helpers.generateOTP();
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event: 'send_otp',
+      phoneNumber,
+      otp
+    }));
     const expiresAt = new Date(Date.now() + APP_CONSTANTS.OTP_EXPIRY_MINUTES * 60 * 1000);
     
     // Delete any existing OTP for this phone number
@@ -53,9 +59,11 @@ export class AuthController {
   // Verify OTP and authenticate citizen
   verifyOTP = asyncHandler(async (req: Request, res: Response) => {
     const { phoneNumber, otp } = req.body;
+    const devBypassCode = process.env.OTP_DEV_CODE;
+    const isDevBypass = devBypassCode && otp === devBypassCode;
     
-    // Find valid OTP
-    const otpRecord = await prisma.oTP.findFirst({
+    // Find valid OTP (skip when dev bypass code matches)
+    const otpRecord = isDevBypass ? null : await prisma.oTP.findFirst({
       where: {
         phoneNumberEncrypted: phoneNumber,
         otp,
@@ -64,18 +72,26 @@ export class AuthController {
       }
     });
     
-    if (!otpRecord) {
+    if (!otpRecord && !isDevBypass) {
+      console.warn(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'verify_otp_failed',
+        phoneNumber,
+        otp
+      }));
       return res.status(400).json({
         success: false,
         error: ERROR_MESSAGES.INVALID_OTP
       });
     }
     
-    // Mark OTP as used
-    await prisma.oTP.update({
-      where: { id: otpRecord.id },
-      data: { isUsed: true }
-    });
+    // Mark OTP as used (only when not dev bypass)
+    if (otpRecord) {
+      await prisma.oTP.update({
+        where: { id: otpRecord.id },
+        data: { isUsed: true }
+      });
+    }
     
     // Find or create citizen
     let citizen = await prisma.citizen.findUnique({
@@ -87,11 +103,7 @@ export class AuthController {
         data: {
           phoneNumberEncrypted: phoneNumber,
           phoneNumberHash: phoneNumber,
-          isPhoneVerified: true,
-          registeredCity: 'Chennai', // Default values
-          registeredPincode: '600001',
-          registeredDistrict: 'Chennai',
-          registeredState: 'Tamil Nadu'
+          isPhoneVerified: true
         }
       });
     } else {
@@ -128,7 +140,7 @@ export class AuthController {
   
   // Register citizen with complete profile
   registerCitizen = asyncHandler(async (req: Request, res: Response) => {
-    const { phoneNumber, name, email, registeredCity, registeredPincode, registeredDistrict, registeredState } = req.body;
+    const { phoneNumber, name, email } = req.body;
     
     // Check if citizen already exists
     const existingCitizen = await prisma.citizen.findUnique({
@@ -149,10 +161,6 @@ export class AuthController {
         name,
         emailEncrypted: email,
         emailHash: email,
-        registeredCity,
-        registeredPincode,
-        registeredDistrict,
-        registeredState,
         isPhoneVerified: true
       }
     });

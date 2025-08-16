@@ -22,10 +22,6 @@ export class CitizenController {
         phoneNumberEncrypted: true,
         name: true,
         emailEncrypted: true,
-        registeredCity: true,
-        registeredPincode: true,
-        registeredDistrict: true,
-        registeredState: true,
         isPhoneVerified: true,
         isIdentityVerified: true,
         totalPoints: true,
@@ -80,7 +76,13 @@ export class CitizenController {
   // Submit violation report
   submitReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const citizenId = req.user.id;
-    const reportData: CreateReportRequest = req.body;
+    const reportData: any = req.body;
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event: 'submit_report_request',
+      citizenId,
+      body: reportData
+    }));
     
     // Check daily report limit
     const today = new Date();
@@ -106,15 +108,19 @@ export class CitizenController {
     const processedReport = await duplicateDetectionService.processReport(reportData);
     
     // Create report
+    // Support array-based violation types from client
+    const allViolationTypes = reportData.violationTypes as string[];
+    const mainViolationType = allViolationTypes[0];
+
     const report = await prisma.violationReport.create({
       data: {
         citizenId,
         reporterId: citizenId,
         reporterPhoneEncrypted: req.user.phoneNumberEncrypted,
         reporterPhoneHash: req.user.phoneNumberEncrypted,
-        reporterCity: req.user.registeredCity,
-        reporterPincode: req.user.registeredPincode,
-        violationType: reportData.violationType,
+        reporterCity: reportData.city,
+        reporterPincode: reportData.pincode,
+        violationType: mainViolationType,
         description: reportData.description,
         timestamp: reportData.timestamp,
         latitude: reportData.latitude,
@@ -127,8 +133,11 @@ export class CitizenController {
         vehicleNumberEncrypted: reportData.vehicleNumber,
         vehicleType: reportData.vehicleType,
         vehicleColor: reportData.vehicleColor,
+        photoUrl: reportData.photoUrl,
+        videoUrl: reportData.videoUrl,
         isDuplicate: processedReport.isDuplicate,
         duplicateGroupId: processedReport.duplicateGroupId,
+        mediaMetadata: JSON.stringify({ violationTypes: allViolationTypes }),
         isAnonymous: req.user.isAnonymousMode || reportData.isAnonymous
       },
       include: {
@@ -141,6 +150,12 @@ export class CitizenController {
         }
       }
     });
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event: 'submit_report_success',
+      citizenId,
+      reportId: report.id
+    }));
     
     // Update citizen stats
     await prisma.citizen.update({

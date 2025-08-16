@@ -32,13 +32,17 @@ export class DuplicateDetectionService {
   private async findPotentialDuplicates(reportData: CreateReportRequest) {
     const timeWindow = APP_CONSTANTS.DUPLICATE_DETECTION_TIME_WINDOW; // minutes
     const locationRadius = APP_CONSTANTS.DUPLICATE_DETECTION_RADIUS; // ~100 meters
+    const ts = (reportData as any).timestamp instanceof Date
+      ? (reportData as any).timestamp as Date
+      : new Date((reportData as any).timestamp);
+    const violation = (reportData as any).violationType || 'OTHERS';
     
     return await prisma.violationReport.findMany({
       where: {
-        violationType: reportData.violationType,
+        violationType: violation,
         timestamp: {
-          gte: new Date(reportData.timestamp.getTime() - timeWindow * 60 * 1000),
-          lte: new Date(reportData.timestamp.getTime() + timeWindow * 60 * 1000)
+          gte: new Date(ts.getTime() - timeWindow * 60 * 1000),
+          lte: new Date(ts.getTime() + timeWindow * 60 * 1000)
         },
         latitude: {
           gte: reportData.latitude - locationRadius,
@@ -71,13 +75,15 @@ export class DuplicateDetectionService {
     else if (locationDistance < 100) score += 25;
     
     // Time similarity (30% weight)
-    const timeDiff = Math.abs(newReport.timestamp.getTime() - existingReport.timestamp.getTime());
+    const newTs = (newReport as any).timestamp instanceof Date ? (newReport as any).timestamp : new Date((newReport as any).timestamp);
+    const timeDiff = Math.abs(newTs.getTime() - existingReport.timestamp.getTime());
     if (timeDiff < 5 * 60 * 1000) score += 30; // 5 minutes
     else if (timeDiff < 15 * 60 * 1000) score += 15; // 15 minutes
     
     // Vehicle similarity (20% weight)
-    if (newReport.vehicleNumber && existingReport.vehicleNumber) {
-      if (newReport.vehicleNumber.toUpperCase() === existingReport.vehicleNumber.toUpperCase()) {
+    const newVeh = (newReport as any).vehicleNumber;
+    if (newVeh && existingReport.vehicleNumber) {
+      if (newVeh.toUpperCase() === existingReport.vehicleNumber.toUpperCase()) {
         score += 20;
       }
     }

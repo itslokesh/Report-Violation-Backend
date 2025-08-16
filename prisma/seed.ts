@@ -66,10 +66,6 @@ async function main() {
       phoneNumber: '+91-9876543210',
       name: 'Rahul Kumar',
       email: 'rahul@example.com',
-      registeredCity: 'Chennai',
-      registeredPincode: '600001',
-      registeredDistrict: 'Chennai',
-      registeredState: 'Tamil Nadu',
       isPhoneVerified: true,
       totalPoints: 50,
       pointsEarned: 50,
@@ -81,10 +77,6 @@ async function main() {
       phoneNumber: '+91-8765432109',
       name: 'Priya Sharma',
       email: 'priya@example.com',
-      registeredCity: 'Chennai',
-      registeredPincode: '600002',
-      registeredDistrict: 'Chennai',
-      registeredState: 'Tamil Nadu',
       isPhoneVerified: true,
       totalPoints: 25,
       pointsEarned: 25,
@@ -96,10 +88,6 @@ async function main() {
       phoneNumber: '+91-7654321098',
       name: 'Amit Patel',
       email: 'amit@example.com',
-      registeredCity: 'Chennai',
-      registeredPincode: '600003',
-      registeredDistrict: 'Chennai',
-      registeredState: 'Tamil Nadu',
       isPhoneVerified: true,
       totalPoints: 15,
       pointsEarned: 15,
@@ -119,10 +107,6 @@ async function main() {
         emailEncrypted: citizenData.email,
         emailHash: citizenData.email,
         name: citizenData.name,
-        registeredCity: citizenData.registeredCity,
-        registeredPincode: citizenData.registeredPincode,
-        registeredDistrict: citizenData.registeredDistrict,
-        registeredState: citizenData.registeredState,
         isPhoneVerified: citizenData.isPhoneVerified,
         totalPoints: citizenData.totalPoints,
         pointsEarned: citizenData.pointsEarned,
@@ -243,6 +227,101 @@ async function main() {
     }
   }
 
+  // Create sample feedback
+  const feedbackData = [
+    {
+      feedbackType: 'APP_FEEDBACK',
+      category: 'UI_UX',
+      title: 'App interface is very user-friendly',
+      description: 'The citizen app interface is intuitive and easy to navigate. Great job on the design!',
+      rating: 5,
+      priority: 'LOW',
+      isAnonymous: false,
+      citizenId: citizen1?.id
+    },
+    {
+      feedbackType: 'BUG',
+      category: 'BUG',
+      title: 'Photo upload sometimes fails',
+      description: 'When uploading photos for violation reports, the app sometimes crashes or fails to upload. This happens especially with large image files.',
+      rating: 2,
+      priority: 'HIGH',
+      isAnonymous: false,
+      citizenId: citizen2?.id
+    },
+    {
+      feedbackType: 'SERVICE_FEEDBACK',
+      category: 'PRAISE',
+      title: 'Excellent response time from police',
+      description: 'I submitted a report yesterday and received a response within 2 hours. The police officer was very professional and helpful.',
+      rating: 5,
+      priority: 'LOW',
+      isAnonymous: false,
+      citizenId: citizen3?.id
+    },
+    {
+      feedbackType: 'FEATURE_REQUEST',
+      category: 'SUGGESTION',
+      title: 'Add dark mode option',
+      description: 'It would be great to have a dark mode option for the app, especially for night-time usage.',
+      rating: 4,
+      priority: 'MEDIUM',
+      isAnonymous: true
+    },
+    {
+      feedbackType: 'REPORT_FEEDBACK',
+      category: 'COMPLAINT',
+      title: 'Report status not updating properly',
+      description: 'The status of my submitted reports is not updating in real-time. I have to refresh multiple times to see the current status.',
+      rating: 1,
+      priority: 'CRITICAL',
+      isAnonymous: false,
+      citizenId: citizen1?.id,
+      reportId: 1
+    }
+  ];
+
+  for (const feedback of feedbackData) {
+    if (feedback.citizenId || feedback.isAnonymous) {
+      await prisma.feedback.create({
+        data: feedback
+      });
+    }
+  }
+
+  // Create sample feedback responses
+  const responseData = [
+    {
+      feedbackId: 'feedback1', // Will be replaced with actual ID
+      responderId: 'user1', // Will be replaced with actual user ID
+      message: 'Thank you for your positive feedback! We\'re glad you find the app user-friendly.',
+      isInternal: false
+    },
+    {
+      feedbackId: 'feedback2', // Will be replaced with actual ID
+      responderId: 'user1', // Will be replaced with actual user ID
+      message: 'We\'re investigating the photo upload issue. This will be fixed in the next update.',
+      isInternal: false
+    }
+  ];
+
+  // Get actual feedback and user IDs for responses
+  const feedbacks = await prisma.feedback.findMany({ take: 2 });
+  const adminUser = await prisma.user.findUnique({ where: { emailEncrypted: 'admin@police.gov.in' } });
+
+  if (feedbacks.length > 0 && adminUser) {
+    for (let i = 0; i < Math.min(feedbacks.length, responseData.length); i++) {
+      await prisma.feedbackResponse.create({
+        data: {
+          feedbackId: feedbacks[i].id,
+          responderId: adminUser.id,
+          message: responseData[i].message,
+          isInternal: responseData[i].isInternal
+        }
+      });
+    }
+  }
+
   console.log('✅ Database seeding completed successfully!');
   console.log('👮‍♂️ Created police users:');
   console.log('   - officer1@police.gov.in (password: password123)');
@@ -250,6 +329,7 @@ async function main() {
   console.log('   - admin@police.gov.in (password: password123)');
   console.log('👥 Created sample citizens with phone numbers');
   console.log('📋 Created sample violation reports');
+  console.log('💬 Created sample feedback and responses');
 }
 
 main()

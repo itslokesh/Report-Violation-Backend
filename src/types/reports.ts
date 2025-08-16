@@ -1,4 +1,7 @@
-import { ViolationType, SeverityLevel, VehicleType, ReportStatus } from '@prisma/client';
+type ViolationType = string;
+type SeverityLevel = string;
+type VehicleType = string;
+type ReportStatus = string;
 
 export interface CreateReportRequest {
   violationType: ViolationType;
