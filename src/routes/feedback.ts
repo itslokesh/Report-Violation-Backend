@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { FeedbackController } from '../controllers/feedbackController';
-import { authMiddleware as authenticateToken } from '../middleware/auth';
+import { authMiddleware as authenticateToken, citizenAuthMiddleware } from '../middleware/auth';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { 
   createFeedbackSchema, 
@@ -19,7 +19,7 @@ router.post('/submit',
 );
 
 router.get('/my-feedback', 
-  authenticateToken, 
+  citizenAuthMiddleware, 
   FeedbackController.getMyFeedback
 );
 

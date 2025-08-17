@@ -13,21 +13,12 @@ export class FeedbackController {
       let citizenId: string | undefined;
       let userId: string | undefined;
 
-      if (user.role === 'CITIZEN') {
-        // Find citizen by phone number
-        const citizen = await prisma.citizen.findUnique({
-          where: { phoneNumberEncrypted: user.phoneNumber }
-        });
-        if (!citizen) {
-          return res.status(404).json({
-            success: false,
-            message: 'Citizen not found'
-          });
-        }
-        citizenId = citizen.id;
-      } else {
-        // Police user
+      if (user && user.role) {
+        // Police user (has role)
         userId = user.id;
+      } else {
+        // Citizen user (no role on model)
+        citizenId = user.id;
       }
 
       // Create feedback
@@ -644,29 +635,25 @@ export class FeedbackController {
       const limit = parseInt(req.query.limit as any) || 20;
       const skip = (page - 1) * limit;
 
-      let citizenId: string;
-
-      if (user.role === 'CITIZEN') {
-        const citizen = await prisma.citizen.findUnique({
-          where: { phoneNumberEncrypted: user.phoneNumber }
-        });
-        if (!citizen) {
-          return res.status(404).json({
-            success: false,
-            message: 'Citizen not found'
-          });
-        }
-        citizenId = citizen.id;
-      } else {
+      // Citizen user has no role on the model; police users have role
+      if (user && user.role) {
         return res.status(403).json({
           success: false,
           message: 'Access denied'
         });
       }
 
+      const citizenId: string = user.id;
+
       const [feedback, total] = await Promise.all([
         prisma.feedback.findMany({
-          where: { citizenId },
+          where: {
+            OR: [
+              { citizenId },
+              // backward-compat: some earlier entries may have incorrectly stored citizen id in userId
+              { userId: citizenId }
+            ]
+          },
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' },
@@ -686,7 +673,14 @@ export class FeedbackController {
             }
           }
         }),
-        prisma.feedback.count({ where: { citizenId } })
+        prisma.feedback.count({
+          where: {
+            OR: [
+              { citizenId },
+              { userId: citizenId }
+            ]
+          }
+        })
       ]);
 
       const pages = Math.ceil(total / limit);
