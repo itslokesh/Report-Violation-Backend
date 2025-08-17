@@ -67,6 +67,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 export const policeAuthMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await authMiddleware(req, res, () => {});
+    if (res.headersSent) return; // authMiddleware already responded
     
     if (req.user && req.user.role) {
       // This is a police user
@@ -88,6 +89,7 @@ export const policeAuthMiddleware = async (req: AuthRequest, res: Response, next
 export const citizenAuthMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await authMiddleware(req, res, () => {});
+    if (res.headersSent) return; // authMiddleware already responded
     
     if (req.user && !req.user.role) {
       // This is a citizen user
@@ -109,6 +111,7 @@ export const citizenAuthMiddleware = async (req: AuthRequest, res: Response, nex
 export const adminAuthMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await policeAuthMiddleware(req, res, () => {});
+    if (res.headersSent) return; // previous middleware already responded
     
     if (req.user && req.user.role === 'ADMIN') {
       next();
