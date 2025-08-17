@@ -15,7 +15,7 @@ export class PoliceController {
   getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user.id;
     
-    const user = await prisma.user.findUnique({
+    const user = await prisma.police.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -50,7 +50,7 @@ export class PoliceController {
     const userId = req.user.id;
     const { name, department } = req.body;
     
-    const user = await prisma.user.update({
+    const user = await prisma.police.update({
       where: { id: userId },
       data: {
         name,
@@ -676,7 +676,7 @@ export class PoliceController {
     }
     
     // Get officer performance data
-    const officers = await prisma.user.findMany({
+    const officers = await prisma.police.findMany({
       where: {
         role: { in: ['OFFICER', 'SUPERVISOR'] }
       },

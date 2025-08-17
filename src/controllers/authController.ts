@@ -140,7 +140,7 @@ export class AuthController {
   
   // Register citizen with complete profile
   registerCitizen = asyncHandler(async (req: Request, res: Response) => {
-    const { phoneNumber, name, email } = req.body;
+    const { phoneNumber, name, email, registeredCity, registeredPincode, registeredDistrict, registeredState } = req.body as any;
     
     // Check if citizen already exists
     const existingCitizen = await prisma.citizen.findUnique({
@@ -161,7 +161,11 @@ export class AuthController {
         name,
         emailEncrypted: email,
         emailHash: email,
-        isPhoneVerified: true
+        isPhoneVerified: true,
+        ...(registeredCity ? { } : {}),
+        ...(registeredPincode ? { } : {}),
+        ...(registeredDistrict ? { } : {}),
+        ...(registeredState ? { } : {})
       }
     });
     
@@ -192,7 +196,7 @@ export class AuthController {
     const { email, password } = req.body;
     
     // Find police user
-    const user = await prisma.user.findUnique({
+    const user = await prisma.police.findUnique({
       where: { emailEncrypted: email }
     });
     
@@ -214,7 +218,7 @@ export class AuthController {
     }
     
     // Update last login
-    await prisma.user.update({
+    await prisma.police.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() }
     });

@@ -5,7 +5,7 @@ async function listTables() {
     console.log('🔍 Listing all tables in the database...\n');
 
     // Get table counts
-    const userCount = await prisma.user.count();
+    const userCount = await prisma.police.count();
     const citizenCount = await prisma.citizen.count();
     const violationReportCount = await prisma.violationReport.count();
     const otpCount = await prisma.oTP.count();
@@ -27,7 +27,7 @@ async function listTables() {
     console.log('===============');
 
     // Sample Users
-    const users = await prisma.user.findMany({
+    const users = await prisma.police.findMany({
       take: 3,
       select: {
         id: true,

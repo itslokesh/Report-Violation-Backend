@@ -67,12 +67,12 @@ export const schemas = {
 
   citizenRegistration: Joi.object({
     phoneNumber: Joi.string().pattern(/^\+91-\d{10}$/).required(),
-    name: Joi.string().min(2).max(50).optional(),
-    email: Joi.string().email().optional(),
-    registeredCity: Joi.string().min(2).max(50).required(),
-    registeredPincode: Joi.string().length(6).required(),
-    registeredDistrict: Joi.string().min(2).max(50).required(),
-    registeredState: Joi.string().min(2).max(50).required()
+    name: Joi.string().min(2).max(50).required(),
+    email: Joi.string().email().required(),
+    registeredCity: Joi.string().min(2).max(50).optional(),
+    registeredPincode: Joi.string().length(6).optional(),
+    registeredDistrict: Joi.string().min(2).max(50).optional(),
+    registeredState: Joi.string().min(2).max(50).optional()
   }),
 
   policeAuth: Joi.object({

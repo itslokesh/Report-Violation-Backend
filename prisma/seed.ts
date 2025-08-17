@@ -43,7 +43,7 @@ async function main() {
   for (const userData of policeUsers) {
     const passwordHash = await Helpers.hashPassword(userData.password);
     
-    await prisma.user.upsert({
+    await prisma.police.upsert({
       where: { emailEncrypted: userData.email },
       update: {},
       create: {
@@ -307,7 +307,7 @@ async function main() {
 
   // Get actual feedback and user IDs for responses
   const feedbacks = await prisma.feedback.findMany({ take: 2 });
-  const adminUser = await prisma.user.findUnique({ where: { emailEncrypted: 'admin@police.gov.in' } });
+  const adminUser = await prisma.police.findUnique({ where: { emailEncrypted: 'admin@police.gov.in' } });
 
   if (feedbacks.length > 0 && adminUser) {
     for (let i = 0; i < Math.min(feedbacks.length, responseData.length); i++) {

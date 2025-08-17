@@ -39,7 +39,7 @@ async function main() {
     ];
     for (const userData of policeUsers) {
         const passwordHash = await helpers_1.Helpers.hashPassword(userData.password);
-        await prisma.user.upsert({
+        await prisma.police.upsert({
             where: { email: userData.email },
             update: {},
             create: {

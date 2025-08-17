@@ -36,7 +36,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       
       req.user = citizen;
     } else if (decoded.type === 'police') {
-      const user = await prisma.user.findUnique({
+      const user = await prisma.police.findUnique({
         where: { id: decoded.userId }
       });
       

@@ -35,7 +35,7 @@ model Citizen {
   @@index([emailHash])
 }
 
-model User {
+model Police {
   id              String            @id @default(cuid())
   emailEncrypted  String            @unique
   emailHash       String            @unique
@@ -57,6 +57,7 @@ model User {
 
   @@index([emailHash])
   @@index([badgeNumber])
+  @@map("User")
 }
 
 model ViolationReport {
@@ -98,7 +99,7 @@ model ViolationReport {
   updatedAt              DateTime  @updatedAt
   isAnonymous            Boolean   @default(false)
   citizenId              String
-  reviewer               User?     @relation(fields: [reviewerId], references: [id])
+  reviewer               Police?     @relation(fields: [reviewerId], references: [id])
   citizen                Citizen   @relation(fields: [citizenId], references: [id])
   feedback               Feedback[]
 
@@ -149,9 +150,9 @@ model Feedback {
   reportId          Int?          // If feedback related to specific report
   
   citizen           Citizen?      @relation(fields: [citizenId], references: [id])
-  user              User?         @relation(fields: [userId], references: [id])
+  user              Police?         @relation(fields: [userId], references: [id])
   report            ViolationReport? @relation(fields: [reportId], references: [id])
-  assignedUser      User?         @relation("AssignedFeedback", fields: [assignedTo], references: [id])
+  assignedUser      Police?         @relation("AssignedFeedback", fields: [assignedTo], references: [id])
   responses         FeedbackResponse[]
 
   @@index([feedbackType])
@@ -175,7 +176,7 @@ model FeedbackResponse {
   
   // Relationships
   feedback    Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-  responder   User     @relation(fields: [responderId], references: [id])
+  responder   Police     @relation(fields: [responderId], references: [id])
 
   @@index([feedbackId])
   @@index([responderId])
