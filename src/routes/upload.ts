@@ -7,8 +7,13 @@ import { SUCCESS_MESSAGES } from '../utils/constants';
 const router = Router();
 const fileUploadService = new FileUploadService();
 
-// Apply authentication middleware to all routes
-router.use(authMiddleware);
+// Apply auth dynamically per request so env flag takes effect reliably
+router.use((req, res, next) => {
+	if (process.env.PROTOTYPE_NO_AUTH === 'true') {
+		return next();
+	}
+	return authMiddleware(req as any, res as any, next as any);
+});
 
 // Upload photo
 router.post('/photo', 

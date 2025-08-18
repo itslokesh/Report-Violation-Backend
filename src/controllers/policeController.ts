@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/database';
 import { MockDataService } from '../services/mockDataService';
 import { SmsService } from '../services/smsService';
-import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/constants';
+import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, VIOLATION_FINES } from '../utils/constants';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import { ReportFilters, UpdateReportStatusRequest } from '../types/reports';
@@ -484,6 +484,91 @@ export class PoliceController {
       averageProcessingTime = Math.round(totalTime / processedReports.length / 1000); // Convert to seconds
     }
     
+    // Weekly trend (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const weeklyReports = await prisma.violationReport.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { gte: sevenDaysAgo, lt: new Date() }
+      },
+      select: {
+        createdAt: true,
+        status: true,
+        violationType: true,
+        severity: true
+      }
+    });
+
+    const weeklyTrend = Array.from({ length: 7 }).map((_, idx) => {
+      const day = new Date(sevenDaysAgo);
+      day.setDate(sevenDaysAgo.getDate() + idx);
+      const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999);
+
+      const items = weeklyReports.filter(r => r.createdAt >= dayStart && r.createdAt <= dayEnd);
+      const reports = items.length;
+      const approved = items.filter(r => r.status === 'APPROVED').length;
+      const rejected = items.filter(r => r.status === 'REJECTED').length;
+      const pending = items.filter(r => r.status === 'PENDING' || r.status === 'UNDER_REVIEW').length;
+      const revenue = items
+        .filter(r => r.status === 'APPROVED' && r.violationType && r.severity && (VIOLATION_FINES as any)[r.violationType] && (VIOLATION_FINES as any)[r.violationType][r.severity])
+        .reduce((sum, r: any) => sum + (VIOLATION_FINES as any)[r.violationType][r.severity], 0);
+      return {
+        date: dayStart.toISOString().split('T')[0],
+        reports,
+        approved,
+        rejected,
+        pending,
+        revenue
+      };
+    });
+
+    // Monthly trend (last 12 months)
+    const startOfThisMonth = new Date();
+    startOfThisMonth.setDate(1);
+    startOfThisMonth.setHours(0, 0, 0, 0);
+    const twelveMonthsAgo = new Date(startOfThisMonth);
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+
+    const monthlyReports = await prisma.violationReport.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { gte: twelveMonthsAgo, lt: new Date() }
+      },
+      select: {
+        createdAt: true,
+        status: true,
+        violationType: true,
+        severity: true
+      }
+    });
+
+    const monthlyTrendMap = new Map<string, { reports: number; approved: number; rejected: number; pending: number; revenue: number }>();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(twelveMonthsAgo);
+      d.setMonth(twelveMonthsAgo.getMonth() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyTrendMap.set(key, { reports: 0, approved: 0, rejected: 0, pending: 0, revenue: 0 });
+    }
+
+    monthlyReports.forEach((r: any) => {
+      const d = r.createdAt as Date;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const entry = monthlyTrendMap.get(key)!;
+      entry.reports += 1;
+      if (r.status === 'APPROVED') entry.approved += 1;
+      else if (r.status === 'REJECTED') entry.rejected += 1;
+      else if (r.status === 'PENDING' || r.status === 'UNDER_REVIEW') entry.pending += 1;
+      if (r.status === 'APPROVED' && r.violationType && r.severity && (VIOLATION_FINES as any)[r.violationType] && (VIOLATION_FINES as any)[r.violationType][r.severity]) {
+        entry.revenue += (VIOLATION_FINES as any)[r.violationType][r.severity];
+      }
+    });
+
+    const monthlyTrend = Array.from(monthlyTrendMap.entries()).map(([month, v]) => ({ month, ...v }));
+
     const dashboard = {
       totalReports,
       pendingReports,
@@ -505,7 +590,9 @@ export class PoliceController {
       reportsByStatus: reportsByStatus.reduce((acc, item) => {
         acc[item.status] = item._count.status;
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, number>),
+      weeklyTrend,
+      monthlyTrend
     };
     
     res.json({
@@ -619,19 +706,32 @@ export class PoliceController {
       where: whereClause,
       _count: { id: true }
     });
+
+    // Get violation types per hotspot to enrich results
+    const hotspotTypes = await prisma.violationReport.groupBy({
+      by: ['latitude', 'longitude', 'addressEncrypted', 'city', 'violationType'],
+      where: whereClause,
+      _count: { id: true }
+    });
     
     const result = geographicStats.map(stat => {
       const cityHotspots = hotspots
         .filter(h => h.city === stat.city)
         .sort((a, b) => b._count.id - a._count.id)
         .slice(0, 5) // Top 5 hotspots
-        .map(hotspot => ({
-          latitude: hotspot.latitude,
-          longitude: hotspot.longitude,
-          address: hotspot.addressEncrypted,
-          violationCount: hotspot._count.id,
-          violationTypes: [] // Would need additional query to get violation types for this location
-        }));
+        .map(hotspot => {
+          const typesForHotspot = hotspotTypes
+            .filter(t => t.city === hotspot.city && t.latitude === hotspot.latitude && t.longitude === hotspot.longitude && t.addressEncrypted === hotspot.addressEncrypted)
+            .sort((a, b) => b._count.id - a._count.id)
+            .map(t => t.violationType as string);
+          return {
+            latitude: hotspot.latitude,
+            longitude: hotspot.longitude,
+            address: hotspot.addressEncrypted,
+            violationCount: hotspot._count.id,
+            violationTypes: typesForHotspot
+          };
+        });
       
       // Calculate status counts for this city/district
       const cityStatusStats = statusStats.filter(s => s.city === stat.city && s.district === stat.district);
@@ -707,6 +807,7 @@ export class PoliceController {
         
         const reportsProcessed = reports.length;
         const approvedReports = reports.filter(r => r.status === 'APPROVED').length;
+        const rejectedReports = reports.filter(r => r.status === 'REJECTED').length;
         const challansIssued = reports.filter(r => r.challanIssued).length;
         
         // Calculate average processing time
@@ -728,6 +829,9 @@ export class PoliceController {
           officerName: officer.name,
           badgeNumber: officer.badgeNumber,
           reportsProcessed,
+          processed: reportsProcessed,
+          approved: approvedReports,
+          rejected: rejectedReports,
           averageProcessingTime,
           approvalRate: Math.round(approvalRate * 100) / 100,
           accuracyRate,

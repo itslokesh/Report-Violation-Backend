@@ -1,9 +1,9 @@
+import './config/env';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import path from 'path';
 import { requestLogger } from './middleware/requestLogger';
 
@@ -17,8 +17,6 @@ import feedbackRoutes from './routes/feedback';
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,13 +24,25 @@ const PORT = process.env.PORT || 3000;
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
-const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
+// CORS configuration (strict allowed origins)
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser/health checks
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+  credentials: true
+}));
+
+// Preflight
+app.options('*', cors());
 
 // Compression middleware
 app.use(compression());
@@ -113,6 +123,7 @@ app.listen(PORT, () => {
   console.log(`🚔 Traffic Police Backend API running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 Prototype no-auth for police/upload: ${process.env.PROTOTYPE_NO_AUTH === 'true' ? 'ENABLED' : 'disabled'}`);
 });
 
 export default app;
