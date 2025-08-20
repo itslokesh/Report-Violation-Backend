@@ -30,6 +30,9 @@ model Citizen {
   isActive             Boolean           @default(true)
   reports              ViolationReport[]
   feedback             Feedback[]
+  pointsTransactions   PointsTransaction[]
+  reportEvents         ReportEvent[]
+  notifications        Notification[]
 
   @@index([phoneNumberHash])
   @@index([emailHash])
@@ -54,6 +57,8 @@ model Police {
   feedback        Feedback[]
   assignedFeedback Feedback[] @relation("AssignedFeedback")
   feedbackResponses FeedbackResponse[]
+  reportEvents     ReportEvent[]
+  reportComments   ReportComment[]
 
   @@index([emailHash])
   @@index([badgeNumber])
@@ -102,6 +107,8 @@ model ViolationReport {
   reviewer               Police?     @relation(fields: [reviewerId], references: [id])
   citizen                Citizen   @relation(fields: [citizenId], references: [id])
   feedback               Feedback[]
+  events                 ReportEvent[]
+  comments               ReportComment[]
 
   @@index([status])
   @@index([city])
@@ -181,4 +188,74 @@ model FeedbackResponse {
   @@index([feedbackId])
   @@index([responderId])
   @@index([createdAt])
+}
+
+model ReportEvent {
+  id          String   @id @default(cuid())
+  reportId    Int
+  citizenId   String?
+  userId      String?
+  type        String   // REPORT_SUBMITTED | STATUS_UPDATED | POINTS_AWARDED | FEEDBACK_ADDED | MEDIA_UPLOADED
+  title       String?
+  description String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  report      ViolationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  citizen     Citizen?        @relation(fields: [citizenId], references: [id])
+  user        Police?         @relation(fields: [userId], references: [id])
+
+  @@index([reportId, createdAt])
+  @@index([citizenId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ReportComment {
+  id         String   @id @default(cuid())
+  reportId   Int
+  authorId   String?
+  authorName String?
+  message    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  report     ViolationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author     Police?         @relation(fields: [authorId], references: [id])
+
+  @@index([reportId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model PointsTransaction {
+  id           String   @id @default(cuid())
+  citizenId    String
+  type         String   // EARN | REDEEM | ADJUST
+  reportId     Int?
+  points       Int      // positive for EARN/ADJUST add; negative for REDEEM/ADJUST subtract
+  description  String?
+  metadata     String?
+  balanceAfter Int
+  createdAt    DateTime @default(now())
+
+  citizen      Citizen  @relation(fields: [citizenId], references: [id])
+
+  @@index([citizenId, createdAt])
+  @@index([reportId])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  citizenId  String
+  reportId   Int?
+  type       String   // REPORT_STATUS
+  title      String
+  message    String
+  readAt     DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  citizen    Citizen  @relation(fields: [citizenId], references: [id])
+
+  @@index([citizenId, createdAt])
+  @@index([reportId])
 }

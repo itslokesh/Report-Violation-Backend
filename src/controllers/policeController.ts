@@ -3,6 +3,13 @@ import { prisma } from '../utils/database';
 import { MockDataService } from '../services/mockDataService';
 import { SmsService } from '../services/smsService';
 import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, VIOLATION_FINES } from '../utils/constants';
+import { ReportEventService } from '../services/reportEventService';
+
+// Helper to safely parse JSON string metadata
+const parseMedia = (metadata: string | null): any => {
+  if (!metadata) return null;
+  try { return JSON.parse(metadata); } catch { return metadata; }
+};
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import { ReportFilters, UpdateReportStatusRequest } from '../types/reports';
@@ -71,6 +78,8 @@ export class PoliceController {
       status,
       city,
       violationType,
+      violationTypes,
+      violationTypeMode = 'any',
       dateFrom,
       dateTo,
       vehicleNumber,
@@ -78,13 +87,28 @@ export class PoliceController {
       limit = 20,
       sortBy = 'createdAt',
       sortOrder = 'desc'
-    } = req.query;
+    } = req.query as any;
     
     const filters: any = {};
     
     if (status) filters.status = status;
     if (city) filters.city = city;
     if (violationType) filters.violationType = violationType;
+    const typesArray = Array.isArray(violationTypes)
+      ? violationTypes
+      : (typeof violationTypes === 'string' && violationTypes.length > 0
+        ? violationTypes.split(',')
+        : undefined);
+    if (typesArray && typesArray.length > 0) {
+      if (violationTypeMode === 'all') {
+        // All-of set: emulate by AND-ing ORs via string contains in mediaMetadata if needed
+        // For now, treat as ANY since schema stores single violationType; extend if multi-type stored
+        filters.violationType = { in: typesArray } as any;
+      } else {
+        // ANY-of set
+        filters.violationType = { in: typesArray } as any;
+      }
+    }
     if (dateFrom || dateTo) {
       filters.createdAt = {};
       if (dateFrom) filters.createdAt.gte = new Date(dateFrom as string);
@@ -102,6 +126,8 @@ export class PoliceController {
     const orderBy: any = {};
     if (sortBy === 'timestamp') {
       orderBy.timestamp = sortOrder;
+    } else if (sortBy === 'status') {
+      orderBy.status = sortOrder;
     } else {
       orderBy.createdAt = sortOrder;
     }
@@ -129,7 +155,12 @@ export class PoliceController {
       prisma.violationReport.count({ where: filters })
     ]);
     
-    // Transform reports to match expected response format
+    const parseMedia = (metadata: string | null) => {
+      if (!metadata) return null;
+      try { return JSON.parse(metadata); } catch { return metadata; }
+    };
+
+    // Transform reports to match expected response format (include mediaMetadata)
     const transformedReports = reports.map(report => ({
       id: report.id,
       violationType: report.violationType,
@@ -145,6 +176,7 @@ export class PoliceController {
       status: report.status,
       photoUrl: report.photoUrl,
       videoUrl: report.videoUrl,
+      mediaMetadata: parseMedia(report.mediaMetadata as any),
       citizen: {
         id: report.citizen.id,
         name: report.citizen.name,
@@ -235,6 +267,7 @@ export class PoliceController {
       status: report.status,
       photoUrl: report.photoUrl,
       videoUrl: report.videoUrl,
+      mediaMetadata: parseMedia(report.mediaMetadata as any),
       citizen: {
         id: report.citizen.id,
         name: report.citizen.name,
@@ -259,8 +292,8 @@ export class PoliceController {
   // Update report status
   updateReportStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { status, reviewNotes, challanIssued, challanNumber }: UpdateReportStatusRequest = req.body;
-    const reviewerId = req.user.id;
+    const { status, reviewNotes, challanIssued, challanNumber, approvedViolationTypes }: any = req.body;
+    const reviewerId = (req as any).user?.id || null;
     
     const report = await prisma.violationReport.findUnique({
       where: { id: Number(id) },
@@ -276,8 +309,25 @@ export class PoliceController {
     
     // Calculate points to award if approved
     let pointsAwarded = 0;
+    let approvedCount = 0;
+    let mediaMetadataUpdate: string | undefined;
     if (status === 'APPROVED') {
-      pointsAwarded = APP_CONSTANTS.POINTS_PER_APPROVED_REPORT;
+      const parsedTypesRaw = Array.isArray(approvedViolationTypes)
+        ? approvedViolationTypes
+        : (typeof approvedViolationTypes === 'string' && approvedViolationTypes.length > 0
+          ? approvedViolationTypes.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : []);
+      const parsedTypes = parsedTypesRaw.map((t: string) => t.toUpperCase());
+      approvedCount = parsedTypes.length > 0 ? parsedTypes.length : 1;
+      pointsAwarded = APP_CONSTANTS.POINTS_PER_APPROVED_REPORT * approvedCount;
+
+      // Merge approved violations into mediaMetadata for audit/UX
+      let existingMeta: any = {};
+      try { existingMeta = report.mediaMetadata ? JSON.parse(report.mediaMetadata) : {}; } catch { existingMeta = {}; }
+      existingMeta.approvedViolationTypes = parsedTypes.length > 0 ? parsedTypes : [report.violationType].filter(Boolean);
+      existingMeta.approvedAt = new Date().toISOString();
+      if (reviewerId) existingMeta.approvedBy = reviewerId;
+      mediaMetadataUpdate = JSON.stringify(existingMeta);
       
       // Check if this is the first reporter
       const existingReports = await prisma.violationReport.findMany({
@@ -314,7 +364,8 @@ export class PoliceController {
         challanNumber,
         reviewerId,
         reviewTimestamp: new Date(),
-        pointsAwarded
+        pointsAwarded,
+        ...(mediaMetadataUpdate ? { mediaMetadata: mediaMetadataUpdate } : {})
       },
       include: {
         citizen: {
@@ -333,8 +384,18 @@ export class PoliceController {
         }
       }
     });
+
+    // Log event: status updated
+    await ReportEventService.log({
+      reportId: Number(id),
+      type: 'STATUS_UPDATED',
+      title: `Status changed to ${status}`,
+      description: reviewNotes || undefined,
+      metadata: { status, challanIssued, challanNumber },
+      userId: reviewerId || undefined
+    });
     
-    // Update citizen stats if approved/rejected
+    // Update citizen stats and create points transaction if approved/rejected
     if (status === 'APPROVED' || status === 'REJECTED') {
       const citizen = await prisma.citizen.findUnique({
         where: { id: report.citizenId }
@@ -355,6 +416,31 @@ export class PoliceController {
             accuracyRate
           }
         });
+
+        // Create points transaction when approved
+        if (status === 'APPROVED' && pointsAwarded > 0) {
+          await prisma.pointsTransaction.create({
+            data: {
+              citizenId: report.citizenId,
+              type: 'EARN',
+              reportId: Number(id),
+              points: pointsAwarded,
+              description: `Points awarded for approved report #${id} (${approvedCount} violation(s))`,
+              balanceAfter: newTotalPoints
+            }
+          });
+
+          // Log event: points awarded
+          await ReportEventService.log({
+            reportId: Number(id),
+            type: 'POINTS_AWARDED',
+            title: 'Points awarded',
+            description: `${pointsAwarded} points awarded to citizen`,
+            metadata: { pointsAwarded },
+            citizenId: report.citizenId,
+            userId: reviewerId
+          });
+        }
         
         // Send SMS notification if approved
         if (status === 'APPROVED' && citizen.notificationEnabled) {
@@ -669,7 +755,7 @@ export class PoliceController {
   
   // Get geographic statistics
   getGeographicStats = asyncHandler(async (req: Request, res: Response) => {
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, includeAllHotspots } = req.query as any;
     
     // Build date filters
     const dateFilters: any = {};
@@ -715,10 +801,11 @@ export class PoliceController {
     });
     
     const result = geographicStats.map(stat => {
-      const cityHotspots = hotspots
+      const isAll = String(includeAllHotspots).toLowerCase() === 'true';
+      const cityHotspotsSource = hotspots
         .filter(h => h.city === stat.city)
-        .sort((a, b) => b._count.id - a._count.id)
-        .slice(0, 5) // Top 5 hotspots
+        .sort((a, b) => b._count.id - a._count.id);
+      const cityHotspots = (isAll ? cityHotspotsSource : cityHotspotsSource.slice(0, 5))
         .map(hotspot => {
           const typesForHotspot = hotspotTypes
             .filter(t => t.city === hotspot.city && t.latitude === hotspot.latitude && t.longitude === hotspot.longitude && t.addressEncrypted === hotspot.addressEncrypted)

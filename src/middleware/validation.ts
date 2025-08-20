@@ -120,7 +120,7 @@ export const schemas = {
   }),
 
   updateReportStatus: Joi.object({
-    status: Joi.string().valid(
+    status: Joi.string().uppercase().valid(
       'PENDING',
       'UNDER_REVIEW',
       'APPROVED',
@@ -129,7 +129,21 @@ export const schemas = {
     ).required(),
     reviewNotes: Joi.string().max(500).optional(),
     challanIssued: Joi.boolean().optional(),
-    challanNumber: Joi.string().optional()
+    challanNumber: Joi.string().optional(),
+    approvedViolationTypes: Joi.alternatives().try(
+      Joi.array().items(Joi.string().uppercase().valid(
+        'WRONG_SIDE_DRIVING',
+        'NO_PARKING_ZONE',
+        'SIGNAL_JUMPING',
+        'SPEED_VIOLATION',
+        'HELMET_SEATBELT_VIOLATION',
+        'MOBILE_PHONE_USAGE',
+        'LANE_CUTTING',
+        'DRUNK_DRIVING_SUSPECTED',
+        'OTHERS'
+      )),
+      Joi.string()
+    ).optional()
   }),
 
   reportFilters: Joi.object({
@@ -140,6 +154,17 @@ export const schemas = {
       'REJECTED',
       'DUPLICATE'
     ).optional(),
+    statuses: Joi.alternatives().try(
+      Joi.array().items(Joi.string().valid(
+        'PENDING',
+        'UNDER_REVIEW',
+        'APPROVED',
+        'REJECTED',
+        'DUPLICATE'
+      )).min(1),
+      Joi.string()
+    ).optional(),
+    statusMode: Joi.string().valid('any', 'all').default('any'),
     city: Joi.string().optional(),
     violationType: Joi.string().valid(
       'WRONG_SIDE_DRIVING',
@@ -152,11 +177,32 @@ export const schemas = {
       'DRUNK_DRIVING_SUSPECTED',
       'OTHERS'
     ).optional(),
+    violationTypes: Joi.alternatives().try(
+      Joi.array().items(Joi.string().valid(
+        'WRONG_SIDE_DRIVING',
+        'NO_PARKING_ZONE',
+        'SIGNAL_JUMPING',
+        'SPEED_VIOLATION',
+        'HELMET_SEATBELT_VIOLATION',
+        'MOBILE_PHONE_USAGE',
+        'LANE_CUTTING',
+        'DRUNK_DRIVING_SUSPECTED',
+        'OTHERS'
+      )).min(1),
+      Joi.string()
+    ).optional(),
+    violationTypeMode: Joi.string().valid('any', 'all').default('any'),
     severity: Joi.string().valid('MINOR', 'MAJOR', 'CRITICAL').optional(),
+    // Support both dateFrom/dateTo (used by police dashboards) and startDate/endDate (legacy)
+    dateFrom: Joi.date().optional(),
+    dateTo: Joi.date().optional(),
     startDate: Joi.date().optional(),
     endDate: Joi.date().optional(),
+    vehicleNumber: Joi.string().optional(),
     page: Joi.number().integer().min(1).optional(),
-    limit: Joi.number().integer().min(1).max(100).optional()
+    limit: Joi.number().integer().min(1).max(100).optional(),
+    sortBy: Joi.string().valid('createdAt', 'timestamp', 'status').optional(),
+    sortOrder: Joi.string().valid('asc', 'desc').optional()
   }),
 
   reportId: Joi.object({

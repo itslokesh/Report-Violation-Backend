@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/database';
 import { DuplicateDetectionService } from '../services/duplicateDetection';
+import { ReportEventService } from '../services/reportEventService';
 import { SmsService } from '../services/smsService';
 import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/constants';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -150,6 +151,16 @@ export class CitizenController {
         }
       }
     });
+    // Log event: report submitted
+    await ReportEventService.log({
+      reportId: report.id,
+      type: 'REPORT_SUBMITTED',
+      title: 'Report submitted',
+      description: `Report #${report.id} submitted by citizen`,
+      metadata: { isDuplicate: processedReport.isDuplicate, duplicateGroupId: processedReport.duplicateGroupId },
+      citizenId
+    });
+
     console.log(JSON.stringify({
       timestamp: new Date().toISOString(),
       event: 'submit_report_success',
@@ -271,19 +282,9 @@ export class CitizenController {
       });
     }
     
-    // Get recent approved reports for points history
-    const recentReports = await prisma.violationReport.findMany({
-      where: {
-        citizenId,
-        status: 'APPROVED',
-        pointsAwarded: { gt: 0 }
-      },
-      select: {
-        id: true,
-        violationType: true,
-        pointsAwarded: true,
-        createdAt: true
-      },
+    // Get recent points transactions for history
+    const recentTransactions = await prisma.pointsTransaction.findMany({
+      where: { citizenId },
       orderBy: { createdAt: 'desc' },
       take: 10
     });
@@ -292,7 +293,7 @@ export class CitizenController {
       success: true,
       data: {
         ...citizen,
-        recentReports
+        recentTransactions
       }
     });
   });

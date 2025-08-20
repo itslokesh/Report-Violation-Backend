@@ -66,8 +66,30 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging (after parsers so body is available)
 app.use(requestLogger);
 
-// Static serving for local uploads
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Static serving for local uploads with video range/CORS support
+app.use(
+  '/uploads',
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Range', 'Content-Type'],
+    credentials: false
+  }),
+  express.static(path.join(process.cwd(), 'uploads'), {
+    etag: false,
+    lastModified: false,
+    setHeaders(res) {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      // Prevent caching that can lead to 304 on range requests
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  })
+);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

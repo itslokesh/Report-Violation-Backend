@@ -4,7 +4,7 @@ export const APP_CONSTANTS = {
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/jpg'],
   ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/avi', 'video/mov'],
   MAX_REPORTS_PER_DAY: 50,
-  POINTS_PER_APPROVED_REPORT: 10,
+  POINTS_PER_APPROVED_REPORT: 100,
   BONUS_POINTS_FIRST_REPORTER: 5,
   DUPLICATE_DETECTION_RADIUS: 0.001, // ~100 meters
   DUPLICATE_DETECTION_TIME_WINDOW: 30, // minutes
