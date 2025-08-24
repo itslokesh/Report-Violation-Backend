@@ -24,7 +24,9 @@
     "docker:build": "docker build -t traffic-police-backend .",
     "docker:run": "docker run -p 3000:3000 traffic-police-backend",
     "db:list": "ts-node scripts/listTables.ts",
-    "smoke": "node ./scripts/smoke.mjs"
+    "smoke": "node ./scripts/smoke.mjs",
+    "db:populate-coimbatore": "ts-node scripts/populateCoimbatoreData.ts",
+    "db:cleanup": "ts-node -e \"import('./scripts/populateCoimbatoreData.ts').then(m => m.cleanupDatabase())\""
   },
   "dependencies": {
     "express": "^4.18.2",

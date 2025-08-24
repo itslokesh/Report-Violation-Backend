@@ -958,5 +958,458 @@ export class PoliceController {
       data: vehicleInfo
     });
   });
+
+  // ===== ENHANCED DASHBOARD ENDPOINTS WITH FLEXIBLE TIME RANGES =====
+
+  // Get dashboard overview with flexible time range
+  getDashboardOverview = asyncHandler(async (req: Request, res: Response) => {
+    const { dateFrom, dateTo, city, days = 30 } = req.query;
+    
+    // Build date filters
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else if (days) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(days));
+      dateFilters = { gte: daysAgo };
+    }
+    
+    // Build where clause
+    const whereClause: any = {};
+    if (Object.keys(dateFilters).length > 0) {
+      whereClause.createdAt = dateFilters;
+    }
+    if (city) {
+      whereClause.city = city;
+    }
+    
+    // Get today's date for today's statistics
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const todayWhereClause = {
+      ...whereClause,
+      createdAt: {
+        ...whereClause.createdAt,
+        gte: today,
+        lt: tomorrow
+      }
+    };
+    
+    const [
+      totalReports,
+      pendingReports,
+      approvedReports,
+      rejectedReports,
+      duplicateReports,
+      processedToday,
+      approvedToday,
+      rejectedToday,
+      reportsByViolationType,
+      reportsByCity,
+      reportsByStatus
+    ] = await Promise.all([
+      prisma.violationReport.count({ where: whereClause }),
+      prisma.violationReport.count({ where: { ...whereClause, status: 'PENDING' } }),
+      prisma.violationReport.count({ where: { ...whereClause, status: 'APPROVED' } }),
+      prisma.violationReport.count({ where: { ...whereClause, status: 'REJECTED' } }),
+      prisma.violationReport.count({ where: { ...whereClause, status: 'DUPLICATE' } }),
+      prisma.violationReport.count({ where: todayWhereClause }),
+      prisma.violationReport.count({ where: { ...todayWhereClause, status: 'APPROVED' } }),
+      prisma.violationReport.count({ where: { ...todayWhereClause, status: 'REJECTED' } }),
+      prisma.violationReport.groupBy({
+        by: ['violationType'],
+        where: whereClause,
+        _count: { violationType: true }
+      }),
+      prisma.violationReport.groupBy({
+        by: ['city'],
+        where: whereClause,
+        _count: { city: true }
+      }),
+      prisma.violationReport.groupBy({
+        by: ['status'],
+        where: whereClause,
+        _count: { status: true }
+      })
+    ]);
+    
+    // Calculate average processing time
+    const processedReports = await prisma.violationReport.findMany({
+      where: {
+        ...whereClause,
+        reviewTimestamp: { not: null }
+      },
+      select: {
+        createdAt: true,
+        reviewTimestamp: true
+      }
+    });
+    
+    let averageProcessingTime = 0;
+    if (processedReports.length > 0) {
+      const totalTime = processedReports.reduce((sum, report) => {
+        const processingTime = report.reviewTimestamp!.getTime() - report.createdAt.getTime();
+        return sum + processingTime;
+      }, 0);
+      averageProcessingTime = Math.round(totalTime / processedReports.length / 1000);
+    }
+
+    const overview = {
+      totalReports,
+      pendingReports,
+      approvedReports,
+      rejectedReports,
+      duplicateReports,
+      processedToday,
+      approvedToday,
+      rejectedToday,
+      averageProcessingTime,
+      reportsByViolationType: reportsByViolationType.reduce((acc: any, item) => {
+        acc[item.violationType] = item._count.violationType;
+        return acc;
+      }, {}),
+      reportsByCity: reportsByCity.reduce((acc: any, item) => {
+        acc[item.city] = item._count.city;
+        return acc;
+      }, {}),
+      reportsByStatus: reportsByStatus.reduce((acc: any, item) => {
+        acc[item.status] = item._count.status;
+        return acc;
+      }, {})
+    };
+
+    res.json({
+      success: true,
+      data: overview,
+      meta: {
+        timeRange: {
+          dateFrom: dateFilters.gte,
+          dateTo: dateFilters.lte,
+          days: days
+        }
+      }
+    });
+  });
+
+  // Get weekly trend with flexible days
+  getWeeklyTrend = asyncHandler(async (req: Request, res: Response) => {
+    const { days = 7, city, dateFrom, dateTo } = req.query;
+    
+    // Build date filters
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else {
+      const daysAgo = new Date();
+      daysAgo.setHours(0, 0, 0, 0);
+      daysAgo.setDate(daysAgo.getDate() - Number(days) + 1);
+      dateFilters = { gte: daysAgo };
+    }
+    
+    // Build where clause
+    const whereClause: any = {};
+    if (Object.keys(dateFilters).length > 0) {
+      whereClause.createdAt = dateFilters;
+    }
+    if (city) {
+      whereClause.city = city;
+    }
+
+    const reports = await prisma.violationReport.findMany({
+      where: whereClause,
+      select: {
+        createdAt: true,
+        status: true,
+        violationType: true,
+        severity: true
+      }
+    });
+
+    // Calculate start date for trend
+    const startDate = dateFilters.gte || new Date();
+    startDate.setHours(0, 0, 0, 0);
+    
+    const trend = Array.from({ length: Number(days) }).map((_, idx) => {
+      const day = new Date(startDate);
+      day.setDate(startDate.getDate() + idx);
+      const dayStart = new Date(day); 
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day); 
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const items = reports.filter(r => r.createdAt >= dayStart && r.createdAt <= dayEnd);
+      const reportsCount = items.length;
+      const approved = items.filter(r => r.status === 'APPROVED').length;
+      const rejected = items.filter(r => r.status === 'REJECTED').length;
+      const pending = items.filter(r => r.status === 'PENDING' || r.status === 'UNDER_REVIEW').length;
+      const revenue = items
+        .filter(r => r.status === 'APPROVED' && r.violationType && r.severity && (VIOLATION_FINES as any)[r.violationType] && (VIOLATION_FINES as any)[r.violationType][r.severity])
+        .reduce((sum, r: any) => sum + (VIOLATION_FINES as any)[r.violationType][r.severity], 0);
+      
+      return {
+        date: dayStart.toISOString().split('T')[0],
+        reports: reportsCount,
+        approved,
+        rejected,
+        pending,
+        revenue
+      };
+    });
+
+    res.json({
+      success: true,
+      data: trend,
+      meta: {
+        timeRange: {
+          days: Number(days),
+          dateFrom: dateFilters.gte,
+          dateTo: dateFilters.lte
+        }
+      }
+    });
+  });
+
+  // Get monthly trend with flexible months
+  getMonthlyTrend = asyncHandler(async (req: Request, res: Response) => {
+    const { months = 12, city, dateFrom, dateTo } = req.query;
+    
+    // Build date filters
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else {
+      const startOfThisMonth = new Date();
+      startOfThisMonth.setDate(1);
+      startOfThisMonth.setHours(0, 0, 0, 0);
+      const monthsAgo = new Date(startOfThisMonth);
+      monthsAgo.setMonth(monthsAgo.getMonth() - Number(months) + 1);
+      dateFilters = { gte: monthsAgo };
+    }
+    
+    // Build where clause
+    const whereClause: any = {};
+    if (Object.keys(dateFilters).length > 0) {
+      whereClause.createdAt = dateFilters;
+    }
+    if (city) {
+      whereClause.city = city;
+    }
+
+    const reports = await prisma.violationReport.findMany({
+      where: whereClause,
+      select: {
+        createdAt: true,
+        status: true,
+        violationType: true,
+        severity: true
+      }
+    });
+
+    // Calculate start date for trend
+    const startDate = dateFilters.gte || new Date();
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const trendMap = new Map<string, { reports: number; approved: number; rejected: number; pending: number; revenue: number }>();
+    
+    for (let i = 0; i < Number(months); i++) {
+      const d = new Date(startDate);
+      d.setMonth(startDate.getMonth() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      trendMap.set(key, { reports: 0, approved: 0, rejected: 0, pending: 0, revenue: 0 });
+    }
+
+    reports.forEach((r: any) => {
+      const d = r.createdAt as Date;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const entry = trendMap.get(key);
+      if (entry) {
+        entry.reports += 1;
+        if (r.status === 'APPROVED') entry.approved += 1;
+        else if (r.status === 'REJECTED') entry.rejected += 1;
+        else if (r.status === 'PENDING' || r.status === 'UNDER_REVIEW') entry.pending += 1;
+        if (r.status === 'APPROVED' && r.violationType && r.severity && (VIOLATION_FINES as any)[r.violationType] && (VIOLATION_FINES as any)[r.violationType][r.severity]) {
+          entry.revenue += (VIOLATION_FINES as any)[r.violationType][r.severity];
+        }
+      }
+    });
+
+    const trend = Array.from(trendMap.entries()).map(([month, v]) => ({ month, ...v }));
+
+    res.json({
+      success: true,
+      data: trend,
+      meta: {
+        timeRange: {
+          months: Number(months),
+          dateFrom: dateFilters.gte,
+          dateTo: dateFilters.lte
+        }
+      }
+    });
+  });
+
+  // Get recent activity with flexible time range
+  getRecentActivity = asyncHandler(async (req: Request, res: Response) => {
+    const { days = 7, city, limit = 20 } = req.query;
+    
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - Number(days));
+    
+    const whereClause: any = {
+      createdAt: { gte: daysAgo }
+    };
+    if (city) {
+      whereClause.city = city;
+    }
+
+    const recentReports = await prisma.violationReport.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        violationType: true,
+        status: true,
+        createdAt: true,
+        city: true,
+        district: true,
+        severity: true,
+        citizenId: true,
+        reviewerId: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: Number(limit)
+    });
+
+    // Get citizen and police names separately
+    const citizenIds = [...new Set(recentReports.map(r => r.citizenId).filter(Boolean))];
+    const reviewerIds = [...new Set(recentReports.map(r => r.reviewerId).filter(Boolean))];
+
+    const [citizens, police] = await Promise.all([
+      prisma.citizen.findMany({
+        where: { id: { in: citizenIds } },
+        select: { id: true, name: true }
+      }),
+      prisma.police.findMany({
+        where: { id: { in: reviewerIds } },
+        select: { id: true, name: true }
+      })
+    ]);
+
+    const citizenMap = new Map(citizens.map(c => [c.id, c.name]));
+    const policeMap = new Map(police.map(p => [p.id, p.name]));
+
+    const activity = recentReports.map(report => ({
+      id: report.id,
+      type: 'VIOLATION_REPORT',
+      title: `${report.violationType} violation reported`,
+      description: `${report.violationType} violation in ${report.city}, ${report.district}`,
+      status: report.status,
+      severity: report.severity,
+      reporter: citizenMap.get(report.citizenId) || 'Anonymous',
+      reviewer: report.reviewerId ? policeMap.get(report.reviewerId) || null : null,
+      timestamp: report.createdAt,
+      location: {
+        city: report.city,
+        district: report.district
+      }
+    }));
+
+    res.json({
+      success: true,
+      data: activity,
+      meta: {
+        timeRange: {
+          days: Number(days)
+        },
+        total: activity.length
+      }
+    });
+  });
+
+  // Get violation types trend with flexible time range
+  getViolationTypesTrend = asyncHandler(async (req: Request, res: Response) => {
+    const { dateFrom, dateTo, city, days = 30 } = req.query;
+    
+    // Build date filters
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else if (days) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(days));
+      dateFilters = { gte: daysAgo };
+    }
+    
+    // Build where clause
+    const whereClause: any = {};
+    if (Object.keys(dateFilters).length > 0) {
+      whereClause.createdAt = dateFilters;
+    }
+    if (city) {
+      whereClause.city = city;
+    }
+
+    const violationTypesData = await prisma.violationReport.groupBy({
+      by: ['violationType', 'status'],
+      where: whereClause,
+      _count: { violationType: true }
+    });
+
+    // Group by violation type
+    const trend = violationTypesData.reduce((acc: any, item) => {
+      if (!acc[item.violationType]) {
+        acc[item.violationType] = {
+          violationType: item.violationType,
+          total: 0,
+          approved: 0,
+          rejected: 0,
+          pending: 0
+        };
+      }
+      
+      acc[item.violationType].total += item._count.violationType;
+      if (item.status === 'APPROVED') {
+        acc[item.violationType].approved += item._count.violationType;
+      } else if (item.status === 'REJECTED') {
+        acc[item.violationType].rejected += item._count.violationType;
+      } else if (item.status === 'PENDING' || item.status === 'UNDER_REVIEW') {
+        acc[item.violationType].pending += item._count.violationType;
+      }
+      
+      return acc;
+    }, {});
+
+    const result = Object.values(trend);
+
+    res.json({
+      success: true,
+      data: result,
+      meta: {
+        timeRange: {
+          dateFrom: dateFilters.gte,
+          dateTo: dateFilters.lte,
+          days: days
+        }
+      }
+    });
+  });
 }
 

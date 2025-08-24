@@ -140,6 +140,13 @@ router.get('/dashboard/violation-types', policeController.getViolationTypeStats)
 router.get('/dashboard/geographic', policeController.getGeographicStats);
 router.get('/dashboard/officer-performance', policeController.getOfficerPerformance);
 
+// Enhanced Dashboard routes with flexible time ranges
+router.get('/dashboard/overview', policeController.getDashboardOverview);
+router.get('/dashboard/weekly-trend', policeController.getWeeklyTrend);
+router.get('/dashboard/monthly-trend', policeController.getMonthlyTrend);
+router.get('/dashboard/recent-activity', policeController.getRecentActivity);
+router.get('/dashboard/violation-types-trend', policeController.getViolationTypesTrend);
+
 // Vehicle information routes
 router.get('/vehicles/:number', policeController.getVehicleInfo);
 
