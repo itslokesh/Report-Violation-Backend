@@ -4,6 +4,7 @@ import { MockDataService } from '../services/mockDataService';
 import { SmsService } from '../services/smsService';
 import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, VIOLATION_FINES } from '../utils/constants';
 import { ReportEventService } from '../services/reportEventService';
+import { encryptionService } from '../utils/encryption';
 
 // Helper to safely parse JSON string metadata
 const parseMedia = (metadata: string | null): any => {
@@ -46,9 +47,15 @@ export class PoliceController {
       });
     }
     
+    // Decrypt email before sending to frontend
+    const decryptedUser = {
+      ...user,
+              email: user.emailEncrypted || 'Unknown'
+    };
+    
     res.json({
       success: true,
-      data: user
+      data: decryptedUser
     });
   });
   
@@ -169,7 +176,7 @@ export class PoliceController {
       timestamp: report.timestamp,
       latitude: report.latitude,
       longitude: report.longitude,
-      address: report.addressEncrypted,
+      address: report.addressEncrypted || 'Unknown Address',
       city: report.city,
       vehicleNumber: report.vehicleNumberEncrypted,
       vehicleType: report.vehicleType,
@@ -180,7 +187,7 @@ export class PoliceController {
       citizen: {
         id: report.citizen.id,
         name: report.citizen.name,
-        phoneNumber: report.citizen.phoneNumberEncrypted,
+        phoneNumber: report.citizen.phoneNumberEncrypted || 'Unknown',
         totalPoints: report.citizen.totalPoints,
         reportsSubmitted: report.citizen.reportsSubmitted,
         reportsApproved: report.citizen.reportsApproved,
@@ -260,7 +267,7 @@ export class PoliceController {
       timestamp: report.timestamp,
       latitude: report.latitude,
       longitude: report.longitude,
-      address: report.addressEncrypted,
+      address: report.addressEncrypted || 'Unknown Address',
       city: report.city,
       vehicleNumber: report.vehicleNumberEncrypted,
       vehicleType: report.vehicleType,
@@ -271,7 +278,7 @@ export class PoliceController {
       citizen: {
         id: report.citizen.id,
         name: report.citizen.name,
-        phoneNumber: report.citizen.phoneNumberEncrypted,
+        phoneNumber: report.citizen.phoneNumberEncrypted || 'Unknown',
         totalPoints: report.citizen.totalPoints,
         reportsSubmitted: report.citizen.reportsSubmitted,
         reportsApproved: report.citizen.reportsApproved,
@@ -328,30 +335,6 @@ export class PoliceController {
       existingMeta.approvedAt = new Date().toISOString();
       if (reviewerId) existingMeta.approvedBy = reviewerId;
       mediaMetadataUpdate = JSON.stringify(existingMeta);
-      
-      // Check if this is the first reporter
-      const existingReports = await prisma.violationReport.findMany({
-        where: {
-          violationType: report.violationType,
-          latitude: {
-            gte: report.latitude - 0.001,
-            lte: report.latitude + 0.001
-          },
-          longitude: {
-            gte: report.longitude - 0.001,
-            lte: report.longitude + 0.001
-          },
-          timestamp: {
-            gte: new Date(report.timestamp.getTime() - 30 * 60 * 1000), // 30 minutes before
-            lte: new Date(report.timestamp.getTime() + 30 * 60 * 1000)  // 30 minutes after
-          },
-          status: 'APPROVED'
-        }
-      });
-      
-      if (existingReports.length === 0) {
-        pointsAwarded += APP_CONSTANTS.BONUS_POINTS_FIRST_REPORTER;
-      }
     }
     
     // Update report
@@ -463,7 +446,7 @@ export class PoliceController {
       citizen: {
         id: updatedReport.citizen.id,
         name: updatedReport.citizen.name,
-        phoneNumber: updatedReport.citizen.phoneNumberEncrypted
+        phoneNumber: updatedReport.citizen.phoneNumberEncrypted || 'Unknown'
       }
     };
     
@@ -755,15 +738,19 @@ export class PoliceController {
   
   // Get geographic statistics
   getGeographicStats = asyncHandler(async (req: Request, res: Response) => {
-    const { dateFrom, dateTo, includeAllHotspots } = req.query as any;
+    const { dateFrom, dateTo, includeAllHotspots, days } = req.query as any;
     
     // Build date filters
-    const dateFilters: any = {};
-    if (dateFrom) {
-      dateFilters.gte = new Date(dateFrom as string);
-    }
-    if (dateTo) {
-      dateFilters.lte = new Date(dateTo as string);
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else if (days) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(days));
+      dateFilters = { gte: daysAgo };
     }
     
     // Build where clause
@@ -772,7 +759,7 @@ export class PoliceController {
       whereClause.createdAt = dateFilters;
     }
     
-    // Get geographic stats
+    // Get geographic stats by city/district
     const geographicStats = await prisma.violationReport.groupBy({
       by: ['city', 'district'],
       where: whereClause,
@@ -785,40 +772,105 @@ export class PoliceController {
       where: whereClause,
       _count: { id: true }
     });
-    
-    // Get hotspots for each city
-    const hotspots = await prisma.violationReport.groupBy({
-      by: ['latitude', 'longitude', 'addressEncrypted', 'city'],
+
+    // Get all reports for hotspot clustering and individual violations
+    const allReports = await prisma.violationReport.findMany({
       where: whereClause,
-      _count: { id: true }
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+        addressEncrypted: true,
+        city: true,
+        district: true,
+        violationType: true,
+        status: true,
+        severity: true,
+        timestamp: true
+      }
     });
 
-    // Get violation types per hotspot to enrich results
-    const hotspotTypes = await prisma.violationReport.groupBy({
-      by: ['latitude', 'longitude', 'addressEncrypted', 'city', 'violationType'],
-      where: whereClause,
-      _count: { id: true }
-    });
-    
+    // Function to cluster nearby coordinates (within ~500m radius)
+    const clusterCoordinates = (reports: any[], radius = 0.005) => {
+      const clusters: any[] = [];
+      
+      reports.forEach(report => {
+        let addedToCluster = false;
+        
+        for (const cluster of clusters) {
+          const distance = Math.sqrt(
+            Math.pow(report.latitude - cluster.centerLat, 2) + 
+            Math.pow(report.longitude - cluster.centerLng, 2)
+          );
+          
+          if (distance <= radius) {
+            cluster.reports.push(report);
+            cluster.centerLat = (cluster.centerLat * cluster.reports.length + report.latitude) / (cluster.reports.length + 1);
+            cluster.centerLng = (cluster.centerLng * cluster.reports.length + report.longitude) / (cluster.reports.length + 1);
+            addedToCluster = true;
+            break;
+          }
+        }
+        
+        if (!addedToCluster) {
+          clusters.push({
+            centerLat: report.latitude,
+            centerLng: report.longitude,
+            reports: [report],
+            city: report.city,
+            district: report.district
+          });
+        }
+      });
+      
+      return clusters;
+    };
+
     const result = geographicStats.map(stat => {
       const isAll = String(includeAllHotspots).toLowerCase() === 'true';
-      const cityHotspotsSource = hotspots
-        .filter(h => h.city === stat.city)
-        .sort((a, b) => b._count.id - a._count.id);
-      const cityHotspots = (isAll ? cityHotspotsSource : cityHotspotsSource.slice(0, 5))
-        .map(hotspot => {
-          const typesForHotspot = hotspotTypes
-            .filter(t => t.city === hotspot.city && t.latitude === hotspot.latitude && t.longitude === hotspot.longitude && t.addressEncrypted === hotspot.addressEncrypted)
-            .sort((a, b) => b._count.id - a._count.id)
-            .map(t => t.violationType as string);
+      
+      // Get reports for this city
+      const cityReports = allReports.filter(r => r.city === stat.city);
+      
+      // Cluster reports into hotspots
+      const cityClusters = clusterCoordinates(cityReports);
+      
+      // Convert clusters to hotspots
+      const cityHotspots = cityClusters
+        .map(cluster => {
+          const violationTypes = [...new Set(cluster.reports.map((r: any) => r.violationType))];
+          const statusCounts = cluster.reports.reduce((acc: any, r: any) => {
+            acc[r.status] = (acc[r.status] || 0) + 1;
+            return acc;
+          }, {});
+          
           return {
-            latitude: hotspot.latitude,
-            longitude: hotspot.longitude,
-            address: hotspot.addressEncrypted,
-            violationCount: hotspot._count.id,
-            violationTypes: typesForHotspot
+            latitude: cluster.centerLat,
+            longitude: cluster.centerLng,
+                              address: cluster.reports[0]?.addressEncrypted || 'Unknown Location',
+            violationCount: cluster.reports.length,
+            violationTypes: violationTypes,
+            statusCounts: statusCounts,
+            district: cluster.district
           };
-        });
+        })
+        .sort((a, b) => b.violationCount - a.violationCount);
+      
+      // Generate individual violations for this city
+      const individualViolations = cityReports.map(report => ({
+        latitude: report.latitude,
+        longitude: report.longitude,
+                      address: report.addressEncrypted || 'Unknown Location',
+        violationType: report.violationType,
+        status: report.status,
+        severity: report.severity,
+        timestamp: report.timestamp,
+        district: report.district,
+        isIndividual: true
+      }));
+      
+      // Always return all hotspots to ensure sum equals total violations
+      const limitedHotspots = cityHotspots;
       
       // Calculate status counts for this city/district
       const cityStatusStats = statusStats.filter(s => s.city === stat.city && s.district === stat.district);
@@ -833,7 +885,10 @@ export class PoliceController {
         approved,
         rejected,
         pending,
-        hotspots: cityHotspots
+        hotspots: limitedHotspots,
+        individualViolations: individualViolations,
+        totalHotspots: cityHotspots.length,
+        totalIndividualViolations: individualViolations.length
       };
     });
     
@@ -1403,6 +1458,82 @@ export class PoliceController {
       success: true,
       data: result,
       meta: {
+        timeRange: {
+          dateFrom: dateFilters.gte,
+          dateTo: dateFilters.lte,
+          days: days
+        }
+      }
+    });
+  });
+
+  // Get status distribution with flexible time range
+  getStatusDistribution = asyncHandler(async (req: Request, res: Response) => {
+    const { dateFrom, dateTo, city, days = 30 } = req.query;
+    
+    // Build date filters
+    let dateFilters: any = {};
+    if (dateFrom && dateTo) {
+      dateFilters = {
+        gte: new Date(dateFrom as string),
+        lte: new Date(dateTo as string)
+      };
+    } else if (days) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(days));
+      dateFilters = { gte: daysAgo };
+    }
+    
+    // Build where clause
+    const whereClause: any = {};
+    if (Object.keys(dateFilters).length > 0) {
+      whereClause.createdAt = dateFilters;
+    }
+    if (city) {
+      whereClause.city = city;
+    }
+
+    // Get status distribution
+    const statusDistribution = await prisma.violationReport.groupBy({
+      by: ['status'],
+      where: whereClause,
+      _count: { status: true }
+    });
+
+    // Get total count for percentage calculation
+    const totalReports = await prisma.violationReport.count({
+      where: whereClause
+    });
+
+    // Format the response
+    const distribution = statusDistribution.map(item => ({
+      status: item.status,
+      count: item._count.status,
+      percentage: totalReports > 0 ? Math.round((item._count.status / totalReports) * 100) : 0
+    }));
+
+    // Add any missing statuses with 0 count
+    const allStatuses = ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
+    const existingStatuses = distribution.map(d => d.status);
+    
+    allStatuses.forEach(status => {
+      if (!existingStatuses.includes(status)) {
+        distribution.push({
+          status,
+          count: 0,
+          percentage: 0
+        });
+      }
+    });
+
+    // Sort by count descending
+    distribution.sort((a, b) => b.count - a.count);
+
+    res.json({
+      success: true,
+      data: distribution,
+      meta: {
+        total: totalReports,
         timeRange: {
           dateFrom: dateFilters.gte,
           dateTo: dateFilters.lte,

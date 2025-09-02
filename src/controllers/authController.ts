@@ -5,6 +5,7 @@ import { SmsService } from '../services/smsService';
 import { Helpers } from '../utils/helpers';
 import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/constants';
 import { asyncHandler } from '../middleware/errorHandler';
+import { encryptionService } from '../utils/encryption';
 
 const jwtService = new JwtService();
 const smsService = new SmsService();
@@ -127,12 +128,19 @@ export class AuthController {
       type: 'citizen'
     });
     
+    // Decrypt citizen data before sending to frontend
+    const decryptedCitizen = {
+      ...citizen,
+      phoneNumber: encryptionService.safeDecrypt(citizen.phoneNumberEncrypted) || 'Unknown',
+      email: encryptionService.safeDecrypt(citizen.emailEncrypted)
+    };
+    
     res.json({
       success: true,
       data: {
         token,
         refreshToken,
-        user: citizen
+        user: decryptedCitizen
       },
       message: SUCCESS_MESSAGES.LOGIN_SUCCESS
     });
@@ -180,12 +188,19 @@ export class AuthController {
       type: 'citizen'
     });
     
+    // Decrypt citizen data before sending to frontend
+    const decryptedCitizen = {
+      ...citizen,
+      phoneNumber: encryptionService.safeDecrypt(citizen.phoneNumberEncrypted) || 'Unknown',
+      email: encryptionService.safeDecrypt(citizen.emailEncrypted)
+    };
+    
     res.json({
       success: true,
       data: {
         token,
         refreshToken,
-        user: citizen
+        user: decryptedCitizen
       },
       message: SUCCESS_MESSAGES.REGISTRATION_SUCCESS
     });
@@ -241,7 +256,7 @@ export class AuthController {
       data: {
         user: {
           id: user.id,
-          email: user.emailEncrypted,
+          email: encryptionService.safeDecrypt(user.emailEncrypted) || 'Unknown',
           name: user.name,
           role: user.role,
           department: user.department,

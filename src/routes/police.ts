@@ -146,6 +146,7 @@ router.get('/dashboard/weekly-trend', policeController.getWeeklyTrend);
 router.get('/dashboard/monthly-trend', policeController.getMonthlyTrend);
 router.get('/dashboard/recent-activity', policeController.getRecentActivity);
 router.get('/dashboard/violation-types-trend', policeController.getViolationTypesTrend);
+router.get('/dashboard/status-distribution', policeController.getStatusDistribution);
 
 // Vehicle information routes
 router.get('/vehicles/:number', policeController.getVehicleInfo);

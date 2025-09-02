@@ -1,25 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-// Encryption service for sensitive data
+// Simple service for prototype (no encryption)
 class EncryptionService {
-  private readonly algorithm = 'aes-256-cbc';
-  private readonly secretKey = 'your-32-character-secret-key-here-123';
-  private readonly iv = Buffer.from('1234567890123456', 'utf8');
-
   encrypt(text: string): string {
-    const key = crypto.scryptSync(this.secretKey, 'salt', 32);
-    const cipher = crypto.createCipheriv(this.algorithm, key, this.iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
+    return text;
   }
 
   hashForSearch(text: string): string {
-    return crypto.createHash('sha256').update(text.toLowerCase()).digest('hex');
+    return text.toLowerCase();
   }
 }
 
@@ -30,18 +21,49 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
-// Coimbatore city coordinates and areas
+// Expanded Coimbatore city coordinates and areas
 const COIMBATORE_AREAS = [
+  // Central Coimbatore
   { name: 'RS Puram', lat: 11.0168, lng: 76.9558, pincode: '641002' },
   { name: 'Peelamedu', lat: 11.0183, lng: 76.9725, pincode: '641004' },
   { name: 'Saibaba Colony', lat: 11.0168, lng: 76.9558, pincode: '641011' },
   { name: 'Race Course', lat: 11.0168, lng: 76.9558, pincode: '641018' },
   { name: 'Gandhipuram', lat: 11.0168, lng: 76.9558, pincode: '641012' },
+  
+  // North Coimbatore
   { name: 'Singanallur', lat: 11.0168, lng: 76.9558, pincode: '641005' },
   { name: 'Kovaipudur', lat: 11.0168, lng: 76.9558, pincode: '641010' },
   { name: 'Vadavalli', lat: 11.0168, lng: 76.9558, pincode: '641041' },
   { name: 'Thudiyalur', lat: 11.0168, lng: 76.9558, pincode: '641034' },
-  { name: 'Saravanampatti', lat: 11.0168, lng: 76.9558, pincode: '641035' }
+  { name: 'Saravanampatti', lat: 11.0168, lng: 76.9558, pincode: '641035' },
+  
+  // South Coimbatore
+  { name: 'Ramanathapuram', lat: 11.0089, lng: 76.9655, pincode: '641045' },
+  { name: 'Sundarapuram', lat: 11.0123, lng: 76.9489, pincode: '641024' },
+  { name: 'Kuniyamuthur', lat: 11.0056, lng: 76.9789, pincode: '641008' },
+  { name: 'Podanur', lat: 10.9989, lng: 76.9456, pincode: '641023' },
+  { name: 'Perur', lat: 10.9876, lng: 76.9345, pincode: '641010' },
+  
+  // East Coimbatore
+  { name: 'Sulur', lat: 11.0234, lng: 77.1234, pincode: '641402' },
+  { name: 'Irugur', lat: 11.0345, lng: 77.1456, pincode: '641103' },
+  { name: 'Kurichi', lat: 11.0456, lng: 77.1678, pincode: '641104' },
+  { name: 'Vellalore', lat: 11.0567, lng: 77.1890, pincode: '641111' },
+  { name: 'Kalapatti', lat: 11.0678, lng: 77.2012, pincode: '641048' },
+  
+  // West Coimbatore
+  { name: 'Mettupalayam', lat: 11.0789, lng: 76.8234, pincode: '641301' },
+  { name: 'Annur', lat: 11.0890, lng: 76.8456, pincode: '641653' },
+  { name: 'Karumathampatti', lat: 11.1001, lng: 76.8678, pincode: '641659' },
+  { name: 'Chettipalayam', lat: 11.1112, lng: 76.8900, pincode: '641201' },
+  { name: 'Pollachi', lat: 10.6789, lng: 77.0123, pincode: '642001' },
+  
+  // Industrial Areas
+  { name: 'SIDCO Industrial Estate', lat: 11.1223, lng: 76.9123, pincode: '641021' },
+  { name: 'TIDEL Park', lat: 11.1334, lng: 76.9345, pincode: '641014' },
+  { name: 'Coimbatore IT Park', lat: 11.1445, lng: 76.9567, pincode: '641018' },
+  { name: 'Karamadai Industrial Area', lat: 11.1556, lng: 76.9789, pincode: '641104' },
+  { name: 'Periyanaickenpalayam', lat: 11.1667, lng: 77.0012, pincode: '641020' }
 ];
 
 // Violation types with their severity and fine ranges
@@ -309,13 +331,13 @@ async function populateCoimbatoreData() {
     }
 
     // 3. Create 100 Violation Reports
-    console.log('🚨 Creating 100 violation reports across Coimbatore...');
+    console.log('🚨 Creating 200 violation reports across Coimbatore...');
     const createdReports: any[] = [];
     const reportEvents: any[] = [];
     const pointsTransactions: any[] = [];
     const notifications: any[] = [];
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 200; i++) {
       const citizen = citizens[Math.floor(Math.random() * citizens.length)];
       const violationType = VIOLATION_TYPES[Math.floor(Math.random() * VIOLATION_TYPES.length)];
       const coords = getRandomCoimbatoreCoordinates();
@@ -337,10 +359,10 @@ async function populateCoimbatoreData() {
         Math.random() * (maxReviewTime - minReviewTime) + minReviewTime : 0;
       const reviewTimestamp = status !== 'PENDING' ? new Date(timestamp.getTime() + reviewDelay) : null;
       
-      const phoneEncrypted = encryptionService.encrypt(citizen.phoneNumberEncrypted);
+      const phoneEncrypted = citizen.phoneNumberEncrypted;
       const phoneHash = encryptionService.hashForSearch(citizen.phoneNumberEncrypted);
-      const addressEncrypted = encryptionService.encrypt(`${coords.area.name}, Coimbatore`);
-      const vehicleNumberEncrypted = Math.random() > 0.1 ? encryptionService.encrypt(generateVehicleNumber()) : null;
+      const addressEncrypted = `${coords.area.name}, Coimbatore`;
+      const vehicleNumberEncrypted = Math.random() > 0.1 ? generateVehicleNumber() : null;
       
       const report = await prisma.violationReport.create({
         data: {
@@ -591,9 +613,10 @@ async function populateCoimbatoreData() {
     const pendingReports = createdReports.filter(r => r.status === 'PENDING').length;
     
     console.log('\n📈 Report Statistics:');
-    console.log(`✅ Approved: ${approvedReports} (${(approvedReports/100*100).toFixed(1)}%)`);
-    console.log(`❌ Rejected: ${rejectedReports} (${(rejectedReports/100*100).toFixed(1)}%)`);
-    console.log(`⏳ Pending: ${pendingReports} (${(pendingReports/100*100).toFixed(1)}%)`);
+    console.log(`✅ Approved: ${approvedReports} (${(approvedReports/200*100).toFixed(1)}%)`);
+    console.log(`❌ Rejected: ${rejectedReports} (${(rejectedReports/200*100).toFixed(1)}%)`);
+    console.log(`⏳ Pending: ${pendingReports} (${(pendingReports/200*100).toFixed(1)}%)`);
+    console.log(`🗺️ Areas Covered: ${new Set(createdReports.map(r => r.addressEncrypted ? r.addressEncrypted.split(',')[0] : 'Unknown')).size}`);
     
     console.log('\n🔑 Test Credentials:');
     console.log('Police Users:');

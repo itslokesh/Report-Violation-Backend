@@ -4,10 +4,10 @@ type VehicleType = string;
 type ReportStatus = string;
 
 export interface CreateReportRequest {
-  violationType: ViolationType;
-  severity: SeverityLevel;
+  violationTypes: string[]; // Changed to array to match validation
+  severity?: SeverityLevel; // Made optional to match validation
   description?: string;
-  timestamp: Date;
+  timestamp: Date | string; // Made flexible to accept both Date and string
   latitude: number;
   longitude: number;
   address: string;
@@ -18,7 +18,9 @@ export interface CreateReportRequest {
   vehicleNumber?: string;
   vehicleType?: VehicleType;
   vehicleColor?: string;
-  isAnonymous: boolean;
+  photoUrl?: string;
+  videoUrl?: string;
+  isAnonymous?: boolean; // Made optional with default false
 }
 
 export interface UpdateReportStatusRequest {

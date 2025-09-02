@@ -7,6 +7,7 @@ import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/consta
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import { CreateReportRequest } from '../types/reports';
+import { encryptionService } from '../utils/encryption';
 
 const duplicateDetectionService = new DuplicateDetectionService();
 const smsService = new SmsService();
@@ -45,9 +46,16 @@ export class CitizenController {
       });
     }
     
+    // Decrypt sensitive data before sending to frontend
+    const decryptedCitizen = {
+      ...citizen,
+              phoneNumber: citizen.phoneNumberEncrypted || 'Unknown',
+        email: citizen.emailEncrypted
+    };
+    
     res.json({
       success: true,
-      data: citizen
+      data: decryptedCitizen
     });
   });
   
@@ -211,10 +219,17 @@ export class CitizenController {
       })
     ]);
     
+    // Get reports data
+    const decryptedReports = reports.map(report => ({
+      ...report,
+      vehicleNumber: report.vehicleNumberEncrypted,
+      address: report.addressEncrypted || 'Unknown Address'
+    }));
+    
     res.json({
       success: true,
       data: {
-        reports,
+        reports: decryptedReports,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -253,9 +268,16 @@ export class CitizenController {
       });
     }
     
+    // Get report data
+    const decryptedReport = {
+      ...report,
+      vehicleNumber: report.vehicleNumberEncrypted,
+      address: report.addressEncrypted || 'Unknown Address'
+    };
+    
     res.json({
       success: true,
-      data: report
+      data: decryptedReport
     });
   });
   
