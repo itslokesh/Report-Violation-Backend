@@ -3,7 +3,7 @@ import { prisma } from '../utils/database';
 import { DuplicateDetectionService } from '../services/duplicateDetection';
 import { ReportEventService } from '../services/reportEventService';
 import { SmsService } from '../services/smsService';
-import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/constants';
+import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, convertToLocalhostUrl } from '../utils/constants';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import { CreateReportRequest } from '../types/reports';
@@ -142,8 +142,8 @@ export class CitizenController {
         vehicleNumberEncrypted: reportData.vehicleNumber,
         vehicleType: reportData.vehicleType,
         vehicleColor: reportData.vehicleColor,
-        photoUrl: reportData.photoUrl,
-        videoUrl: reportData.videoUrl,
+        photoUrl: convertToLocalhostUrl(reportData.photoUrl),
+        videoUrl: convertToLocalhostUrl(reportData.videoUrl),
         isDuplicate: processedReport.isDuplicate,
         duplicateGroupId: processedReport.duplicateGroupId,
         mediaMetadata: JSON.stringify({ violationTypes: allViolationTypes }),

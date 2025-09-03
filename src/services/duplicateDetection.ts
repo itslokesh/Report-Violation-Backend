@@ -11,7 +11,7 @@ export class DuplicateDetectionService {
     if (duplicates.length > 0) {
       const confidenceScore = this.calculateConfidenceScore(reportData, duplicates[0]);
       
-      if (confidenceScore > APP_CONSTANTS.DUPLICATE_CONFIDENCE_THRESHOLD) {
+      if (confidenceScore > APP_CONSTANTS.DUPLICATE_DETECTION_CONFIDENCE_THRESHOLD) {
         return {
           ...reportData,
           isDuplicate: true,

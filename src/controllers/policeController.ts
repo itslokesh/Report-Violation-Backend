@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/database';
 import { MockDataService } from '../services/mockDataService';
 import { SmsService } from '../services/smsService';
-import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, VIOLATION_FINES } from '../utils/constants';
+import { APP_CONSTANTS, SUCCESS_MESSAGES, ERROR_MESSAGES, VIOLATION_FINES, convertToLocalhostUrl } from '../utils/constants';
 import { ReportEventService } from '../services/reportEventService';
 import { encryptionService } from '../utils/encryption';
 
@@ -181,8 +181,8 @@ export class PoliceController {
       vehicleNumber: report.vehicleNumberEncrypted,
       vehicleType: report.vehicleType,
       status: report.status,
-      photoUrl: report.photoUrl,
-      videoUrl: report.videoUrl,
+      photoUrl: convertToLocalhostUrl(report.photoUrl),
+      videoUrl: convertToLocalhostUrl(report.videoUrl),
       mediaMetadata: parseMedia(report.mediaMetadata as any),
       citizen: {
         id: report.citizen.id,
@@ -272,8 +272,8 @@ export class PoliceController {
       vehicleNumber: report.vehicleNumberEncrypted,
       vehicleType: report.vehicleType,
       status: report.status,
-      photoUrl: report.photoUrl,
-      videoUrl: report.videoUrl,
+      photoUrl: convertToLocalhostUrl(report.photoUrl),
+      videoUrl: convertToLocalhostUrl(report.videoUrl),
       mediaMetadata: parseMedia(report.mediaMetadata as any),
       citizen: {
         id: report.citizen.id,

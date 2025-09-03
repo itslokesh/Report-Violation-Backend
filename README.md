@@ -54,6 +54,13 @@ A production-ready, enterprise-grade backend infrastructure designed to handle *
 - **Predictive modeling** for resource allocation optimization
 - **Real-time alerts** for critical violations
 
+### Media URL Management & Network Independence
+- **Automatic localhost conversion**: Media URLs automatically use `localhost:port` for consistent access
+- **Network agnostic**: Works seamlessly across different WiFi networks and IP address changes
+- **Backward compatibility**: Existing IP-based URLs are automatically converted to localhost format
+- **Hybrid storage support**: Local files use localhost, Firebase/cloud files remain unchanged
+- **Zero-configuration**: No manual setup required, works out of the box
+
 ## 📊 Project Outcomes & Business Impact
 
 ### **Technical Achievements & Implementation Success**
@@ -87,6 +94,13 @@ A production-ready, enterprise-grade backend infrastructure designed to handle *
 - **Resource Allocation**: 40% better distribution across patrol areas
 - **Response Time**: 70% faster violation detection and response
 - **Manual Work Reduction**: 80% reduction in paper-based processes
+
+#### **Media URL Management & Network Independence**
+- **Localhost URL Conversion**: Automatic conversion of media URLs to use `localhost:port` instead of dynamic IP addresses
+- **Network Agnostic**: Media files work consistently across different WiFi networks and IP changes
+- **Backward Compatibility**: Existing IP-based URLs are automatically converted to localhost format
+- **Firebase Integration**: Cloud storage URLs remain unchanged while local files use localhost
+- **Zero Downtime**: URL conversion happens seamlessly without affecting existing functionality
 
 #### **Financial Performance & Revenue Impact**
 - **Fine Collection**: 45% increase in revenue through better detection

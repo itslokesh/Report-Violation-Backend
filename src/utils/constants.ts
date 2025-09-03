@@ -7,7 +7,8 @@ export const APP_CONSTANTS = {
   POINTS_PER_APPROVED_REPORT: 100,
   DUPLICATE_DETECTION_RADIUS: 0.001, // ~100 meters
   DUPLICATE_DETECTION_TIME_WINDOW: 30, // minutes
-  DUPLICATE_CONFIDENCE_THRESHOLD: 0.7,
+  DUPLICATE_DETECTION_CONFIDENCE_THRESHOLD: 0.7,
+  LOCAL_SERVER_URL: `http://localhost:${process.env.PORT || 3000}`,
 } as const;
 
 export const ERROR_MESSAGES = {
@@ -48,4 +49,57 @@ export const VIOLATION_FINES = {
   DRUNK_DRIVING_SUSPECTED: { MINOR: 5000, MAJOR: 7500, CRITICAL: 10000 },
   OTHERS: { MINOR: 500, MAJOR: 750, CRITICAL: 1000 },
 } as const;
+
+/**
+ * Converts a relative upload path to a full localhost URL
+ * @param relativePath - The relative path (e.g., /uploads/violations/images/filename.jpg)
+ * @returns Full localhost URL
+ */
+export const getLocalhostUrl = (relativePath: string): string => {
+  if (!relativePath) return relativePath;
+  
+  // If it's already a full URL, return as is
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  
+  // Ensure the path starts with /uploads
+  const cleanPath = relativePath.startsWith('/uploads') ? relativePath : `/uploads/${relativePath}`;
+  
+  return `${APP_CONSTANTS.LOCAL_SERVER_URL}${cleanPath}`;
+};
+
+/**
+ * Converts any existing IP-based media URLs to localhost URLs
+ * This is useful for backward compatibility with existing data
+ * @param url - The URL to convert
+ * @returns Converted localhost URL
+ */
+export const convertToLocalhostUrl = (url: string): string => {
+  if (!url) return url;
+  
+  // If it's already a localhost URL, return as is
+  if (url.includes('localhost')) return url;
+  
+  // If it's a relative path, convert to localhost
+  if (url.startsWith('/uploads')) {
+    return getLocalhostUrl(url);
+  }
+  
+  // If it's an IP-based URL, extract the path and convert to localhost
+  if (url.includes('/uploads/')) {
+    const pathMatch = url.match(/\/uploads\/.*/);
+    if (pathMatch) {
+      return getLocalhostUrl(pathMatch[0]);
+    }
+  }
+  
+  // If it's a Firebase URL, return as is
+  if (url.includes('storage.googleapis.com')) {
+    return url;
+  }
+  
+  // Default case: return as is
+  return url;
+};
 

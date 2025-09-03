@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { UploadResponse } from '../types/api';
-import { APP_CONSTANTS } from '../utils/constants';
+import { APP_CONSTANTS, getLocalhostUrl } from '../utils/constants';
 import path from 'path';
 import { promises as fs } from 'fs';
 
@@ -62,8 +62,9 @@ export class FileUploadService {
         const absPath = path.join(process.cwd(), 'uploads', relPath.replace(`${folder}/images/`, `${folder}/images/`));
         await fs.mkdir(absDir, { recursive: true });
         await fs.writeFile(absPath, file.buffer);
+        const relativeUrl = `/uploads/${relPath}`.replace(/\\/g, '/');
         return {
-          url: `/uploads/${relPath}`.replace(/\\/g, '/'),
+          url: getLocalhostUrl(relativeUrl),
           filename: relPath,
           size: file.size,
           mimeType: file.mimetype,
@@ -111,8 +112,9 @@ export class FileUploadService {
         const absPath = path.join(process.cwd(), 'uploads', relPath.replace(`${folder}/videos/`, `${folder}/videos/`));
         await fs.mkdir(absDir, { recursive: true });
         await fs.writeFile(absPath, file.buffer);
+        const relativeUrl = `/uploads/${relPath}`.replace(/\\/g, '/');
         return {
-          url: `/uploads/${relPath}`.replace(/\\/g, '/'),
+          url: getLocalhostUrl(relativeUrl),
           filename: relPath,
           size: file.size,
           mimeType: file.mimetype,
